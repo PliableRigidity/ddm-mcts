@@ -1,0 +1,3 @@
+# The core has no runtime dependencies.
+# Development: pip install -e ".[dev]"
+# Laya integration: pip install -e ".[laya]"
