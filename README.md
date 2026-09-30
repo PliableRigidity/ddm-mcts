@@ -1,6 +1,16 @@
 # ddm-mcts
 
-**Direct Decision Model Guided Monte Carlo Tree Search**
+**Reusable decision search with a headless robotics toolkit**
+
+Phase 2 adds optional MuJoCo physical planning, snapshot-backed MCTS, Cartesian Panda reaching, swappable policies, and structured run logs. Start with the [robotics usage guide](docs/robotics/README.md), [architecture and concepts](docs/ARCHITECTURE_AND_CONCEPTS.md), and [validation report](docs/robotics/TEST_REPORT.md).
+
+```bash
+python -m pip install -e ".[dev,robotics]"
+export PANDA_MODEL=/path/to/mujoco_menagerie/franka_emika_panda/scene.xml
+python -m ddm_mcts.robotics.cli --target 0.5945 0.02 0.6245
+```
+
+Robotics runs live in `robotics_runs/`. The historical research commands and material below remain available.
 
 `ddm-mcts` is a runnable research prototype for testing whether direct decision models (DDMs), [Laya](https://github.com/NandhaKishorM/laya) and [Mica](https://github.com/akivet/Mica-v0.1-4B), can guide Monte Carlo Tree Search toward useful branches with fewer simulations. The testbed covers Connect Four, grid navigation, job scheduling, delivery routing, seeded inventory management, and synthetic delayed reward.
 

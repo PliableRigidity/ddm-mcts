@@ -11,12 +11,14 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
+robotics = ["mujoco>=3.3,<4", "numpy>=1.26"]
 dev = ["pytest>=8", "ruff>=0.6"]
 laya = ["laya>=0.3"]
 # Mica is served by its official SystemOne HTTP server; the client uses Python's stdlib.
 mica = []
 
 [project.scripts]
+ddm-robotics = "ddm_mcts.robotics.cli:main"
 ddm-mcts = "ddm_mcts.cli:main"
 
 [tool.setuptools.packages.find]
