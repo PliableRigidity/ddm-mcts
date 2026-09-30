@@ -118,11 +118,11 @@ class ControlledRobot(RoboticsEnvironment):
         return self.get_state()
 
 
-def panda_reach(model_path, task: ReachTask, *, increment=0.02, axes=(0, 1, 2), physics_steps=150):
+def panda_reach(model_path, task: ReachTask, *, increment=0.02, axes=(0, 1, 2), physics_steps=150, configure_spec=None):
     from .controller import CartesianController
     from .mujoco_backend import MujocoBackend
 
-    backend = MujocoBackend(model_path, physics_steps=physics_steps, gravity_compensation=True)
+    backend = MujocoBackend(model_path, physics_steps=physics_steps, gravity_compensation=True, configure_spec=configure_spec)
     # Menagerie position servos need gravity compensation for Cartesian holding.
     controller = CartesianController(backend, "hand", tuple(f"joint{i}" for i in range(1, 8)), tuple(f"actuator{i}" for i in range(1, 8)))
     return ControlledRobot(backend, controller, task, cartesian_actions(increment, axes), "home")

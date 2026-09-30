@@ -20,16 +20,25 @@ class PhysicsSnapshot:
 
 class MujocoBackend:
     def __init__(
-        self, model_path: str | Path | None = None, *, xml: str | None = None, physics_steps: int = 150, gravity_compensation: bool = False
+        self,
+        model_path: str | Path | None = None,
+        *,
+        xml: str | None = None,
+        physics_steps: int = 150,
+        gravity_compensation: bool = False,
+        configure_spec=None,
     ):
         if physics_steps < 1 or (model_path is None) == (xml is None):
             raise ValueError("provide exactly one model path or XML and positive physics_steps")
         self.model = mujoco.MjModel.from_xml_string(xml) if xml is not None else mujoco.MjModel.from_xml_path(str(model_path))
-        if gravity_compensation:
+        if gravity_compensation or configure_spec is not None:
             spec = mujoco.MjSpec.from_file(str(model_path)) if xml is None else mujoco.MjSpec.from_string(xml)
-            for body in spec.bodies:
-                if body.name != "world":
-                    body.gravcomp = 1.0
+            if gravity_compensation:
+                for body in spec.bodies:
+                    if body.name != "world":
+                        body.gravcomp = 1.0
+            if configure_spec is not None:
+                configure_spec(spec)
             self.model = spec.compile()
         self.data = mujoco.MjData(self.model)
         self.physics_steps = physics_steps
@@ -84,3 +93,21 @@ class MujocoBackend:
         mujoco.mj_forward(self.model, self.data)
         if not np.isfinite(self.data.qpos).all() or not np.isfinite(self.data.qvel).all():
             raise RuntimeError("non-finite simulator state")
+
+
+def copy_simulator_data(model, source, destination):
+    """Copy complete forward-dynamics inputs across supported Python bindings.
+
+    Older MuJoCo Python releases do not expose mj_copyData. Integration state is
+    sufficient for recomputing scratch kinematics/rendering; preserve warmstarts
+    after forward, just as backend.restore does. No live source state is changed.
+    """
+    if hasattr(mujoco, "mj_copyData"):
+        mujoco.mj_copyData(destination, model, source)
+    else:
+        signature = mujoco.mjtState.mjSTATE_INTEGRATION
+        values = np.empty(mujoco.mj_stateSize(model, signature))
+        mujoco.mj_getState(model, source, values, signature)
+        mujoco.mj_setState(model, destination, values, signature)
+        mujoco.mj_forward(model, destination)
+        mujoco.mj_setState(model, destination, values, signature)

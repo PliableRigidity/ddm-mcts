@@ -66,9 +66,12 @@ class SimulatorAdapter(Environment):
         if horizon < 1:
             raise ValueError("horizon must be positive")
         self.world, self.horizon = world, horizon
+        self.state_projection = None
 
     def initial_state(self):
-        return SearchState(self.world.get_state(), self.world.snapshot())
+        state = self.world.get_state()
+        observation = self.state_projection(state) if self.state_projection is not None else state
+        return SearchState(observation, self.world.snapshot())
 
     def legal_actions(self, state):
         if self.is_terminal(state):
@@ -87,6 +90,8 @@ class SimulatorAdapter(Environment):
         try:
             self.world.restore(state.snapshot)
             observation = self.world.step(action)
+            if self.state_projection is not None:
+                observation = self.state_projection(observation)
             return SearchState(observation, self.world.snapshot(), state.depth + 1)
         finally:
             self.world.restore(saved)
@@ -111,5 +116,20 @@ class RoboticsPlanner:
         self.adapter = SimulatorAdapter(world, horizon)
         self.search = MCTS(self.adapter, policy, config, evaluator=lambda state, player, rng: world.task.evaluate(state.observation))
 
-    def plan(self):
-        return self.search.search(self.adapter.initial_state())
+    def plan(self, observation=None, *, state_projection=None):
+        """Optional perceived root and predicted-observation projection.
+
+        Physics still starts from the current simulator snapshot. No image stepping
+        or privileged entity positions are implied by this projection boundary.
+        """
+        from dataclasses import replace
+
+        previous = self.adapter.state_projection
+        self.adapter.state_projection = state_projection
+        try:
+            root = self.adapter.initial_state()
+            if observation is not None:
+                root = replace(root, observation=observation)
+            return self.search.search(root)
+        finally:
+            self.adapter.state_projection = previous

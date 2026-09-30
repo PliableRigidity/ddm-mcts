@@ -1,6 +1,6 @@
 # Architecture and concepts: decisions, search, and physical futures
 
-This guide covers the historical decision experiments and the Phase 2 robotics toolkit. Historical code is in `ddm_mcts/environments`, `policies`, `search`, `agents`, and `evaluation`; robotics is in `ddm_mcts/robotics`. The experiment filenames containing v2/v4 predate the robotics phase and remain historical code. This checkout contains only `results/.gitkeep`, not numerical experiment reports, so this guide makes no numerical V1 performance claims.
+This guide covers the historical decision experiments, the Phase 2 robotics toolkit, and the Phase 3 perception-aware extension. Historical code is in `ddm_mcts/environments`, `policies`, `search`, `agents`, and `evaluation`; robotics is in `ddm_mcts/robotics`. The experiment filenames containing v2/v4 predate the robotics phase and remain historical code. This checkout contains only `results/.gitkeep`, not numerical experiment reports, so this guide makes no numerical V1 performance claims.
 
 ## Direct decisions and deliberation
 
@@ -110,6 +110,107 @@ Search simulations are not the number of physics transitions: eager expansion cr
 
 Misleading priors can hurt small budgets. Larger budgets can help when the transition model and evaluator are reliable. Trust mixing preserves exploration mass; permutation averaging addresses presentation instability; adaptive search allocates additional effort after disagreement. These mechanisms address distinct problems and are not guarantees. In robotics, simulator mismatch, controller approximation, contacts, and objective design add uncertainty even when priors are excellent. Safety constraints need to be supplied by a task/environment; Phase 2 is not a real-robot safety system.
 
-## Future perception and VLDM direction
+## Model-based perception and VLDM direction
 
-Future architecture may use camera -> perception -> structured state -> DDM -> MCTS -> physical action. That VLM-to-DDM pipeline has separate perception and decision components. A true joint Vision-Language-Decision Model would instead consume vision, a language goal, and candidate decisions together and produce decision probabilities for search. Both still require a world model to predict consequences. Phase 2 implements neither cameras, perception, VLM/VLDM, training, ROS, nor real hardware execution.
+Phase 3 implements camera -> deterministic perception -> structured state -> DDM/uniform policy -> MCTS -> physical action. Future model-based perception can use the same boundary. That VLM-to-DDM pipeline has separate perception and decision components. A true joint Vision-Language-Decision Model would instead consume vision, a language goal, and candidate decisions together and produce decision probabilities for search. Both still require a world model to predict consequences. Phase 2 implements neither cameras, perception, VLM/VLDM, training, ROS, nor real hardware execution.
+
+## Observation, perception, and representation
+
+Observation is what the agent receives, not necessarily a complete physical state. We can write `o_t = H(x_t)` for a sensor mapping H from world-model state x_t. Perception constructs an estimated decision representation `s_hat_t = F(o_t, g)` given raw observation and goal g. The robot then chooses an action using that representation and a transition/world model. Neither a picture nor a list of detected objects necessarily contains joint velocities, actuator state, contacts, or other quantities needed to simulate physics.
+
+`Observation` carries a timestamp, sequence, source, robot telemetry, and optional structured entities/RGB/calibration. `ObservationProvider` abstracts acquisition. GroundTruthObservationProvider supplies privileged simulation information explicitly; GroundTruthPerception resolves that structured observation without an image model. This is a debugging baseline, not a deprecated path. Phase 2's original direct-state API remains supported, and explicit ground-truth observation planning reproduces its search results.
+
+`WorldState` is an immutable reaching representation: robot state, labeled entities, semantic goal, and representation source. Entities include estimated positions and observed/stale metadata. `SemanticReachTask` resolves “reach red” to the red entity, then supplies the existing ReachTask objective. Changing the observation source, perception method, or entity label does not change MCTS. This is deliberately a small task-specific representation rather than a universal scene ontology.
+
+## A live estimate is different from a rollout state
+
+Phase 3 makes the distinction explicit:
+
+- Decision context: perceived target/entities, semantic goal, and observed robot state.
+- Dynamics initialization: full privileged live MuJoCo integration snapshot.
+- Future observation projection: physics-predicted robot motion combined with the current perceived target/entity estimates.
+
+`RoboticsPlanner.plan(observation, state_projection=...)` supports this split while retaining its original no-argument Phase 2 behavior. SimulatorAdapter still snapshots/restores each branch. `WorldState.predict_observation` carries estimated static targets into predicted future observations rather than consulting true scene coordinates. MCTS therefore searches physical robot futures toward a perceived goal. It does not step RGB, acquire speculative images, or use ground-truth target positions to repair perception.
+
+The current demo intentionally mixes camera target perception with simulator robot proprioception and privileged dynamics initialization. This is not a claim that a camera reconstructs a complete robot/simulator state. A future state estimator, belief-state planner, learned world model, or real-robot adapter must provide the missing dynamics-state boundary. If an estimate and rollout initialization disagree, the planner can simulate the wrong futures despite correct search mathematics.
+
+## Calibrated camera observations
+
+MujocoCameraObservationProvider renders a named perspective camera into a separate model/data copy. RGB has shape HxWx3, dtype uint8, RGB channel order, and top-left origin. It returns a read-only image and camera pose/intrinsics metadata; rendering/recomputation never modify the live simulator. Snapshot/restore and same-state image replay are tested. Offscreen rendering is independent of the optional viewer camera and can use EGL without any display. An OpenGL backend is still needed for rasterization.
+
+For the implemented fovy camera model, pixels are square, the principal point is centered, and `f = H / (2 tan(fovy/2))`. With pixel-index centers `cx=(W-1)/2`, `cy=(H-1)/2`, camera-to-world rotation R, and optical center C, a world point p transforms into camera coordinates `p_cam = R^T (p-C)`. MuJoCo looks along local -Z with +X right and +Y up. Projection is:
+
+```
+u = cx + f * p_cam.x / (-p_cam.z)
+v = cy - f * p_cam.y / (-p_cam.z)
+```
+
+The opposite Y sign converts camera-up to image-down. Unprojection needs depth or another constraint. The Phase 3 demo uses a known horizontal target plane:
+
+```
+r = R * [(u-cx)/f, -(v-cy)/f, -1]
+t = (z_plane-C.z) / r.z
+p = C + t*r
+```
+
+Parallel rays and intersections behind the camera fail. The calibrated plane is explicit environmental knowledge; it does not identify which target is red or where that target lies in XY. Arbitrary 3D localization from RGB alone remains underdetermined. Perspective fovy cameras are supported; orthographic/sensor-size intrinsic models are rejected by this provider. See the [official coordinate conventions](https://mujoco.readthedocs.io/en/stable/programming/visualization.html).
+
+ColorPlanePerception uses configured color chromaticities, brightness/area thresholds, connected components, and region centroids. It rejects similarly sized ambiguous regions. It estimates target position through calibrated ray-plane intersection, not a MuJoCo target lookup. Tests relocate the colored markers and recover their changed positions from new pixels. Thin, saturated, well-separated static disks on the calibrated plane are assumptions of this baseline.
+
+Occlusion can bias a centroid. The implemented tracker retains a previously observed estimate for a bounded number of missed/partial frames, explicitly marking it stale and logging a warning. This supports the static-target reaching demo; it does not prove the current position of an invisible or moving object. An absent or expired selected entity stops execution. Observation/estimation uncertainty is not yet propagated mathematically into MCTS values or priors.
+
+## Closed-loop physical deliberation
+
+PhysicalAgent coordinates existing components. Before each decision it observes, perceives, resolves the task goal, and supplies a structured root and prediction projection to RoboticsPlanner. The original run loop applies the selected action through ControlledRobot/controller/physics and then observes again. A final fresh observation supports terminal evaluation. Thus the default is receding-horizon `observe -> perceive -> plan -> act -> observe`, not execution of a precomputed open-loop sequence.
+
+```mermaid
+flowchart TD
+  W[Robot and Simulator] --> O[Observation Provider]
+  O --> GT[Ground-truth Input]
+  O --> RGB[RGB and Camera Calibration]
+  GT --> PG[GroundTruth Perception]
+  RGB --> PV[Visual Perception]
+  PG --> S[Structured World Representation]
+  PV --> S
+  G[Semantic Goal] --> S
+  S --> P[Policy or DDM]
+  P --> M[Existing MCTS]
+  S --> M
+  X[World-model Dynamics Snapshot] --> T[MuJoCo Physical Futures]
+  M --> T
+  T --> E[Projected Future State and Task Evaluation]
+  E --> M
+  M --> A[Selected Action]
+  A --> C[Existing Controller]
+  C --> W
+```
+
+The execution viewer is an observer of selected live actions, with isolated display copies. It never displays rollout snapshots. Camera observations also occur only at live decision boundaries. Moving the viewer's camera does not change sensor calibration or planning state. While MCTS computes, the displayed robot is stationary.
+
+Acquisition, perception, planning, execution, and logging are separate latency components. Phase 3 logs acquire/perceive timings per observation, planning/execution timings per action, representation source, entity visibility, optional images, and optional diagnostic errors. MCTS simulations still differ from physical transition/substep counts because expansion eagerly evaluates every action. DDM cache/request/inference diagnostics retain their original meanings.
+
+## Structured VLM perception versus direct VLDM decisions
+
+The existing structured policy boundary remains `π(a | s_hat, g)`. A future VLM can implement ModelPerceptionAdapter's injected `(observation, goal) -> WorldState` predictor. That is image interpretation followed by a separate structured decision model and MCTS. The current code validates schema/goal identity and tests an offline predictor; it contains no real VLM backend.
+
+A direct VLDM instead scores `(image, language goal, candidate actions) -> P(actions)`. VisualDecisionModel and VisualDecisionPolicy define that separate optional boundary. PhysicalAgent binds the latest live image before each decision and attaches the adapter as MCTS's root policy. Deeper nodes use ordinary uniform/structured DDM priors, because Phase 3 has no predicted future-image generator. Calling the direct visual adapter at non-root states is rejected; reusing a live image as though it depicted a future state would be misleading.
+
+```mermaid
+flowchart LR
+  I[Image and Goal] --> VLM[VLM Perception Boundary]
+  VLM --> S[Structured State]
+  S --> D[DDM]
+  D --> M[MCTS]
+  I --> VD[Direct VLDM Choice Boundary]
+  A[Candidate Actions] --> VD
+  VD --> RP[Root Priors]
+  RP --> M
+```
+
+The two paths can coexist, but a callable interface or injected mock is not a trained model. No VLM/VLDM training, automatic model download, hardware integration, ROS, or reinforcement learning is implemented.
+
+## Ground-truth diagnostics and sim-to-real considerations
+
+Simulation provides ground truth for optional evaluation after inference. Diagnostic callbacks compare each perceived target position to its true scene position and log Euclidean error; the visual algorithm never consumes those answers. Robot proprioception and privileged world-model initialization are separately disclosed rather than counted as visual estimates. Success is measured against the estimated goal; diagnostic true-target distances help check whether that success is physically meaningful.
+
+Sensor calibration error, lighting changes, occlusion, stale detections, dynamics mismatch, and latency can all invalidate a physical plan. Real deployment would require calibrated sensing, uncertainty/failure policies, a dynamics initializer/estimator, robot-specific execution constraints, and safety validation. Adding a VLM does not solve these issues automatically. The deterministic camera/color baseline establishes testable architectural boundaries and closed-loop execution; it does not establish robust general perception or real-robot safety.

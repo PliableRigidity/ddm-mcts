@@ -90,3 +90,17 @@ The terminal shows the target, policy, budget, horizon, action increment, each d
 After success or the step limit, physics stops and the final pose stays visible. Close the window normally to exit; Ctrl+C in the terminal also closes the viewer. Closing early stops execution and retains an error summary for the interrupted run. The process waits for the viewer's render thread to finish on shutdown, avoiding a native-resource teardown race observed under WSL.
 
 Headless mode remains the default: omit `--viewer`. No GUI imports, display setup, or pacing are needed for headless planning. Viewer mode needs a working graphical display (WSLg/X11); on macOS MuJoCo requires its `mjpython` launcher for passive viewing. See the [official passive viewer API](https://mujoco.readthedocs.io/en/stable/python.html#passive-viewer). Automated viewer integration tests use fake handles and never open a window.
+
+## Phase 3: perception-aware physical AI
+
+The toolkit now supports explicit ground-truth observations and real MuJoCo camera observations, deterministic calibrated color perception, structured semantic goals, and a closed-loop PhysicalAgent using the same planner/controller. The [physical-AI guide](PHYSICAL_AI.md) explains the API, camera geometry, logs, model boundaries, and full demo commands.
+
+```bash
+.venv/bin/python -m ddm_mcts.robotics.cli \
+  --model /home/ishaan/robot-arm-playground/mujoco_menagerie/franka_emika_panda/scene.xml \
+  --task visual-reach --goal red --observation camera --perception color --viewer
+```
+
+Change only `--goal blue` to select the other target. Omit `--viewer` for headless operation; set `MUJOCO_GL=egl` before starting Python when an offscreen backend is needed. Camera resolution/name are configurable, `--diagnostics` compares estimated positions against simulation truth, and `--save-images` optionally retains one RGB frame per live observation. Targets are genuinely detected from pixels using camera calibration and a known plane. Robot proprioception and dynamics initialization explicitly remain simulator-native. Model-based perception and direct visual decision interfaces are optional, mock-tested boundaries; no real VLM/VLDM is installed or required.
+
+The original Phase 2 reach command and headless/viewer defaults remain supported. Both phases retain unique logs under `robotics_runs/`; camera observations and viewer updates never run inside speculative search.

@@ -96,3 +96,89 @@ Artifacts:
 All successful runs used target (0.5945, 0.02, 0.6245), uniform policy, 60 simulations/horizon 3, and ended at approximately (0.5923, 0.0192, 0.6243), error 0.0023 m. Live trajectory was MOVE_X_POS, MOVE_X_POS, MOVE_Y_POS. Search pauses are visible as a stationary pose while terminal prints Planning; rollout branches are never published.
 
 Final SHA-256 integrity audit against HEAD: **49 protected historical tracked files checked, zero differences**. No V1 results/reports/source/tests changed. Main README/packaging/gitignore retain their prior Phase 2 edits and were not edited by the viewer stage. No Phase 3 work was introduced.
+
+## Phase 3 final audit and validation — 2026-09-30
+
+Status: **COMPLETE**. Baseline: clean `main` at Phase 2 checkpoint `65009c4a934d19fc45637e41e61f1e9c64fcf3f9`; complete suite **64 passed in 11.99s** (41 V1, 23 Phase 2). Work finalized on `phase3-perception-toolkit`; main remains at that checkpoint. No merge or history rewrite is authorized/performed.
+
+### Definition-of-done audit
+
+Each PASS is supported by tests or real runtime validation, rather than code presence alone.
+
+| Acceptance item | Status | Evidence |
+|---|---|---|
+| V1 intact | PASS | protected source/tests/artifact hash audit |
+| Phase 2 intact | PASS | original 23 tests unmodified and passing |
+| Existing Panda Reach | PASS | original CLI headless and real viewer success |
+| Existing viewer | PASS | Phase 2 GUI smoke, hold and clean shutdown |
+| Observation abstraction | PASS | immutable schema/provider tests |
+| Ground-truth mode | PASS | provider, semantic and coordinate integration tests |
+| MuJoCo RGB observations | PASS | real tiny-scene and Panda rendering |
+| Rendering preserves simulation | PASS | exact integration snapshots and image replay |
+| Perception abstraction | PASS | deterministic, ground-truth and injected model tests |
+| Deterministic visual perception | PASS | masks/components, noise, ambiguity and tracking tests |
+| Structured representation | PASS | WorldState goal resolution/projection tests |
+| Genuine observation-derived output | PASS | relocated targets and poisoned privileged fields |
+| Ground-truth diagnostic comparison | PASS | opt-in true entities/errors after inference |
+| Closed-loop execution | PASS | exact observe/perceive/plan/execute event-order assertion |
+| Proper MCTS/world-model futures | PASS | original MCTS, six action priors/root statistics, physics snapshots |
+| Visual target task | PASS | six real physical acceptance episodes |
+| Semantic goal switching | PASS | same agent/planner/controller/perception red then blue in three scenes |
+| Uniform policy | PASS | all standalone acceptance episodes |
+| Existing DDM path | PASS | TextLaya adapter with injected predictor; existing Mica tests/CLI preserved |
+| Mock DDM | PASS | priors flow through original MCTS expansion |
+| Optional VLM boundary | PASS | injected ModelPerceptionAdapter with schema/goal validation |
+| Optional direct VLDM boundary | PASS | mock image/goal/action scorer as root policy |
+| No real model needed | PASS | no network/services/downloads in tests |
+| Headless visual task | PASS | EGL red/blue runs, including display variables unset |
+| Watchable visual task | PASS | actual WSL GLFW viewer red and blue smoke |
+| Invisible speculative branches | PASS | zero speculative viewer syncs/camera requests; exact live-state preservation |
+| Structured Phase 3 logs | PASS | config, observations, steps, summaries and opt-in images/diagnostics |
+| Architecture guide | PASS | implementation/formula and camera-boundary review |
+| Practical guide | PASS | actual CLI and component API examples |
+| Changelog | PASS | appended Phase 3 history below prior entries |
+| Test report | PASS | this persistent audit and measured evidence |
+| Complete suite | PASS | 83 passed, no skips with Panda and EGL |
+| V1 regression | PASS | 41 passed separately |
+| Phase 2 regression | PASS | 23 passed separately |
+
+Human judgment of rendered appearance remains recommended: automation verifies viewer initialization, execution, final-scene hold and shutdown, not subjective visual correctness. No required architectural feature is PARTIAL/FAIL; real VLM/VLDM/hardware are deliberately outside scope.
+
+### Automated coverage and compatibility
+
+New Phase 3 tests: **19 passed** across `test_observation.py`, `test_perception_camera.py`, and `test_physical_agent.py`. Final suite **83 passed**: 41 V1 + 23 original Phase 2 + 19 Phase 3. No failures/skips in fully configured final validation. Final results are rerun after source hardening. Ruff, robotics/test/example formatting and git whitespace checks pass.
+
+Before the additional post-implementation acceptance case, full compatibility suites passed on MuJoCo **3.14.0 (82 passed)** and **3.3.7 (82 passed)**. The older binding lacks `mj_copyData`; a tested official integration-state copy/forward/reapply fallback preserves inputs. Camera projection-field changes are handled explicitly. Core-only installation without MuJoCo passed **46 tests**, with four optional modules skipped for missing MuJoCo; no inference dependencies are mandatory. Panda tests skip with a PANDA_MODEL reason when the external model is unavailable. Tiny-scene rendering tests explicitly skip if offscreen GL cannot initialize. No skips occurred in final local Panda/EGL validation.
+
+Tests prove image dimensions/type/read-only format, width/height and Y-axis conventions, projection/plane intersection and rotated-camera roundtrips, calibrated geometry, rendering independence, semantic selection, stale expiry, no hidden-coordinate fallback, exact closed-loop event order, one new observation after every selected action, mock policy swapping, root-only direct visual priors, invisible search, visual geometry dynamics equivalence, failed perception logs without execution, completed-log immutability, and original Phase 2 root-statistics equivalence.
+
+### Physical acceptance runs
+
+Camera/color, uniform policy, seed 0, 60 simulations, horizon 3, 2 cm actions, 150 physics steps/action, epsilon 12 mm. Each scene uses the same objects/components for red then blue; only semantic goal changes and episode state resets. z=0.6245 m is explicit plane calibration. The table records selected-target errors, not all-entity aggregate errors. Positions are meters; errors are millimeters. Planning time is measured local latency, not a performance claim.
+
+| Scene / goal | True target | Final perceived target | Max perception error mm | True final reach error mm | Actions / observations | Planning s | Unique run |
+|---|---|---|---:|---:|---|---:|---|
+| 0 / red | (0.6045, 0.08, 0.6245) | (0.604379, 0.07945, 0.6245) | 0.563 | 6.781 | 7 / 8 | 4.26 | 20260930T012327_e508ff329b7d |
+| 0 / blue | (0.5045, -0.08, 0.6245) | (0.504467, -0.079637, 0.6245) | 0.364 | 11.287 | 6 / 7 | 3.29 | 20260930T012333_ba495698eab1 |
+| 1 / red | (0.5945, -0.06, 0.6245) | (0.594718, -0.060161, 0.6245) | 0.271 | 3.818 | 5 / 6 | 2.72 | 20260930T012337_cd94bad84341 |
+| 1 / blue | (0.5145, -0.08, 0.6245) | (0.516723, -0.083941, 0.6245) | 4.524 | 3.535 | 6 / 7 | 3.09 | 20260930T012341_3af732d5e8ab |
+| 2 / red | (0.6245, 0.04, 0.6245) | (0.625511, 0.044998, 0.6245) | 5.099 | 5.913 | 6 / 7 | 3.20 | 20260930T012345_2b6baa2ac6a5 |
+| 2 / blue | (0.5045, -0.1, 0.6245) | (0.504755, -0.09992, 0.6245) | 0.267 | 11.219 | 7 / 8 | 3.72 | 20260930T012349_2aa61661de12 |
+
+All six succeeded. Placements cover positive/negative X and Y displacements and differing nearby distances. `examples/robotics/validate_visual.py` reproduces this small acceptance check; each run includes `acceptance.json`. Initial independent red/blue CLI runs also succeeded (7 actions each), with maximum all-entity errors 0.563 mm and 1.576 mm respectively. Original Phase 2 headless final audit run: `20260930T012438_b9b03b587f5c`, success true.
+
+Stress attempts also exposed expected visibility limits: blue at (0.45,0.09,0.6245) and (0.5145,0.06,0.6245) can be hidden by the initial arm, while (0.4945,-0.10,0.6245) remained hidden beyond the six-frame tracker allowance. These attempts failed explicitly, with retained failure logs; they were not silently converted to successful perception. The acceptance placements require initial visibility and bounded occlusion. This is not broad-workspace or arbitrary-occlusion validation.
+
+### Real viewer validation
+
+Fresh final audit exercised original Phase 2, Phase 3 red and Phase 3 blue with the real WSL display and default GLFW camera. All reached, printed SUCCESS, held the final scene, then received controlled SIGINT and exited **130** cleanly. Captures: `/tmp/ddm-phase3-audit-viewer-{phase2,red,blue}.log`. Earlier independent EGL-camera/red and GLFW-camera/blue viewer smokes also succeeded. No orphan viewer/process remains. Speculative invisibility and physics equivalence are asserted by GUI-free instrumentation; visual appearance still warrants personal inspection.
+
+### Logging, integrity and finalization
+
+Logging adds provider/perception/camera configuration, semantic goal, calibration, estimated entities and staleness, acquisition/perception/planning/execution times, root statistics, warnings, optional truth/errors and optional PPM images. True target entities are read only after inference for diagnostics. Default logging saves no image frames. Failed perception preserves error/success=false and executes no unresolved action. Completed run files are detached from later observations.
+
+All **57 pre-existing runtime/result files** match their pre-Phase-3 SHA-256 hashes. All **51 protected tracked source/test/script/result files** match the Phase 2 checkpoint, including original tests; this broader count includes files beyond the earlier 49-file audit. No historical run/result/report is changed. Main remains the Phase 2 commit. Generated robotics runs, images, caches, dependencies and Menagerie assets are ignored/external and excluded from the commit. SSH remote configuration is reused without credentials changes. A normal Phase 3 branch push is authorized; no merge is performed.
+
+Known limitations: RGB known-plane localization; named perspective fovy cameras only; explicit simulator robot proprioception and privileged dynamics snapshots; static targets and bounded six-frame tracking; color/lighting/visibility assumptions; position-only IK and nearby reaching, without collision/hardware safety guarantees; sequential GL/backend ownership. VLDM priors are root-only because future images are not modeled. No real model inference is validated.
+
+Deliberately deferred: real VLM/VLDM backends/training, arbitrary-depth perception, learned dynamics/belief tracking, real robots, ROS, grasping, RL, large downloads, cloud services, dashboards and any next phase. Recommended next action: personally inspect the pushed Phase 3 branch using PHYSICAL_AI.md before merging.
