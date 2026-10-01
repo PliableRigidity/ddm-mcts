@@ -103,6 +103,9 @@ class VisualInspection:
             print(f"  {entity.label}: {xyz(entity.position)} [{status}]", flush=True)
         if state.semantic_goal is not None:
             print(f"Goal: reach {state.semantic_goal.label} target", flush=True)
+        if state.planning_goal is not None:
+            print(f"Object center: {xyz(state.target().position)}; current TCP waypoint: {xyz(state.goal)}", flush=True)
+            print(f"Controlled frame: {self.world.controller.frame_name}", flush=True)
         self._publish()
 
     def before_plan(self, state, step):

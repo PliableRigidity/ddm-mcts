@@ -67,6 +67,7 @@ def run_episode(world, planner, output_root="robotics_runs", *, configuration=No
                 if observer is not None:
                     observer.after_plan(result.action, planning_seconds)
                 execution_started = time.perf_counter()
+                before_execution = world.get_state()
                 state = world.step(result.action) if observer is None else observer.execute(world, result.action)
                 execution_seconds = time.perf_counter() - execution_started
                 logged_state = planner.logged_state(state) if hasattr(planner, "logged_state") else state
@@ -81,6 +82,13 @@ def run_episode(world, planner, output_root="robotics_runs", *, configuration=No
                     "simulations": result.simulations,
                     "root_statistics": [{**row, "action": str(row["action"])} for row in result.root_statistics()],
                 }
+                if hasattr(planner, "execution_diagnostics"):
+                    execution_diagnostics = planner.execution_diagnostics()
+                    if execution_diagnostics:
+                        record["execution_diagnostics"] = execution_diagnostics
+                        record["requested_end_effector_target"] = tuple(
+                            p + d for p, d in zip(before_execution.position, result.action.displacement, strict=True)
+                        )
                 stream.write(json.dumps(record, default=str) + "\n")
                 stream.flush()
                 decisions += 1
@@ -101,6 +109,8 @@ def run_episode(world, planner, output_root="robotics_runs", *, configuration=No
                 else world.get_state()
             ),
             "final_perception": getattr(planner, "decision_context", None),
+            "perception_diagnostics": getattr(getattr(planner, "perception", None), "diagnostics", lambda: {})(),
+            "execution_diagnostics": getattr(planner, "execution_diagnostics", lambda: {})(),
             "total_planning_seconds": total_planning_seconds,
             "policy_diagnostics": (
                 planner.policy_diagnostics()

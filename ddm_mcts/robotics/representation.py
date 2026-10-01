@@ -12,18 +12,21 @@ class WorldState:
     entities: tuple[Entity, ...]
     semantic_goal: SemanticGoal | None = None
     source: str = "ground-truth"
+    resolved_target_label: str | None = None
+    planning_goal: tuple[float, float, float] | None = None
 
     def target(self) -> Entity:
         if self.semantic_goal is None:
             return Entity("goal", self.robot.goal)
-        matches = [entity for entity in self.entities if entity.label == self.semantic_goal.label]
+        label = self.resolved_target_label or self.semantic_goal.label
+        matches = [entity for entity in self.entities if entity.label == label]
         if len(matches) != 1:
             raise ValueError(f"expected one target for {self.semantic_goal.label!r}, found {len(matches)}")
         return matches[0]
 
     @property
     def goal(self):
-        return self.target().position
+        return self.planning_goal if self.planning_goal is not None else self.target().position
 
     @property
     def position(self):

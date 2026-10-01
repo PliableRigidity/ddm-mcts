@@ -214,3 +214,35 @@ The two paths can coexist, but a callable interface or injected mock is not a tr
 Simulation provides ground truth for optional evaluation after inference. Diagnostic callbacks compare each perceived target position to its true scene position and log Euclidean error; the visual algorithm never consumes those answers. Robot proprioception and privileged world-model initialization are separately disclosed rather than counted as visual estimates. Success is measured against the estimated goal; diagnostic true-target distances help check whether that success is physically meaningful.
 
 Sensor calibration error, lighting changes, occlusion, stale detections, dynamics mismatch, and latency can all invalidate a physical plan. Real deployment would require calibrated sensing, uncertainty/failure policies, a dynamics initializer/estimator, robot-specific execution constraints, and safety validation. Adding a VLM does not solve these issues automatically. The deterministic camera/color baseline establishes testable architectural boundaries and closed-loop execution; it does not establish robust general perception or real-robot safety.
+
+## V3 Phase 1: real local semantic perception
+
+The optional `Qwen3VLBackend` now implements actual local VLM inference through PyTorch and official Hugging Face `Qwen3VLForConditionalGeneration`/`AutoProcessor`. It lazily loads once, sends RGB and a language goal through the model's chat template, generates bounded JSON, and trims input tokens before decoding. CUDA/bfloat16 was validated; dependencies and model weights remain optional. This is the implemented VLM-to-structured-state path. The direct VLDM choice boundary remains separate and mock-tested; V3 Phase 1 does not train a model or ask Qwen for action priors.
+
+```mermaid
+flowchart TD
+    RGB[MuJoCo RGB + language goal] --> VLM[Local Qwen3-VL]
+    VLM --> S[Validated semantic label + image box]
+    S --> G[Shared foreground refinement + calibrated plane geometry]
+    G --> WS[WorldState: goal + resolved label + estimated position]
+    WS --> P[Existing DDM / Uniform Policy]
+    P --> M[Existing PUCT MCTS]
+    WM[MuJoCo snapshot-backed world model] <--> M
+    M --> A[Selected Cartesian action]
+    A --> C[Existing DLS IK + physics]
+    C --> RGB
+```
+
+Semantic recognition answers **which object**. Deterministic localization answers **where it is**. Qwen returns a shape label, description and relative XYXY box, not guessed metric XYZ. The official grounding convention is 0..1000 relative coordinates with top-left origin, X right and Y down; the parser validates and normalizes these to 0..1. Pixel conversion uses original image width/height. The same Phase 3 ray-plane geometry turns a foreground centroid into world position on an explicit center-height plane. RGB does not determine arbitrary depth: the known plane and generated-scene material are deliberate localization assumptions.
+
+All three example objects share one teal material. Common-color masking refines a VLM-selected box and cannot semantically distinguish cube, sphere and cylinder. It has no access to target body IDs, geom positions or scene identity mappings. Diagnostics read true positions only afterward, never correct perception. A backward-compatible `WorldState.resolved_target_label` connects a free-form language goal to the entity label returned by the VLM, so natural language need not exactly equal a simulator object name.
+
+Observe/localize/plan/act remains closed-loop. Default static-scene semantic caching reuses the VLM grounding until goal/reset/calibration changes, but every action still yields a fresh camera image and metric check. Configurable refresh N reruns semantic inference every N observations. Partial occlusion may retain an explicitly stale estimate for at most eight frames; missing/expired/ambiguous localization stops execution. Cached semantics are neither a preplanned action sequence nor imagined future images.
+
+The VLM's load time, inference count/time and semantic cache age are different quantities. Logs keep them separate from camera acquisition, total perception, MCTS planning and physical execution latency. A high self-reported confidence is not calibrated correctness. A valid JSON box can still refer to the wrong object; localization, simulation and search cannot repair mistaken semantic identity automatically. Finite shape silhouettes, calibration and occlusion also cause metric error. The real acceptance checks provide local evidence for this small scene, not general recognition, real-world safety or model reliability guarantees.
+
+See [local VLM usage](robotics/LOCAL_VLM.md) for exact commands, tested dependencies, standard model cache, limitations and failure diagnostics. Existing ground-truth and color perception remain available. Future learned depth/state estimation, uncertainty-aware planning, real hardware and joint VLDM models are outside this phase.
+
+### Object localization and physical approach goals
+
+An estimated object center is a world-representation quantity, not automatically a safe robot destination. V3 semantic reach converts that center into an outside-object +Z approach using a configured conservative bounding radius plus standoff. It lifts before translating above the object. MCTS searches the current waypoint with the existing snapshot-backed transitions; fresh observations resolve subsequent waypoints. Semantic-scene IK uses the hand-local 103.4 mm gripper TCP site consistently for position and Jacobian, while legacy Phase 2 keeps its original hand-body frame. Optional signed geometry-clearance diagnostics are separate from inference and do not supply localization. This is position-only approach reaching, not general collision-aware manipulation.

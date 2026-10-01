@@ -54,6 +54,9 @@ class PhysicalAgent:
             observation_seconds = perf_counter() - started
             started = perf_counter()
             state = self.perception.perceive(observation, self.task.goal)
+            prepare_state = getattr(self.task, "prepare_state", None)
+            if prepare_state is not None:
+                state = prepare_state(state)
             perception_seconds = perf_counter() - started
             self.environment.task = self.task.resolve(state)
             if self.visual_policy is not None:
@@ -74,6 +77,13 @@ class PhysicalAgent:
             }
             if observation.camera is not None:
                 context["camera"] = asdict(observation.camera)
+            task_diagnostics = getattr(self.task, "diagnostics", None)
+            if task_diagnostics is not None:
+                context["approach"] = task_diagnostics(state)
+                context["tcp"] = self.environment.controller.frame_diagnostics()
+            perception_metrics = getattr(self.perception, "diagnostics", None)
+            if perception_metrics is not None:
+                context["perception_diagnostics"] = perception_metrics()
             if self.diagnostics_provider is not None:
                 truth = {e.label: e for e in self.diagnostics_provider()}
                 context["ground_truth_entities"] = [asdict(entity) for entity in truth.values()]
@@ -111,6 +121,9 @@ class PhysicalAgent:
             rgb = self.observation.rgb
             path = images / f"observation_{self.observation.sequence:04d}.ppm"
             path.write_bytes(f"P6\n{rgb.shape[1]} {rgb.shape[0]}\n255\n".encode() + rgb.tobytes())
+        save_debug = getattr(self.perception, "save_debug", None)
+        if save_debug is not None:
+            save_debug(self._folder, self.observation)
         self._saved_sequences.add(self.observation.sequence)
 
     def logged_state(self, simulator_state):
@@ -150,6 +163,18 @@ class PhysicalAgent:
             "structured": getattr(self.search.policy, "diagnostics", lambda: {})(),
             "direct_visual": self.visual_policy.diagnostics() if self.visual_policy is not None else None,
         }
+
+    def execution_diagnostics(self):
+        diagnostics = getattr(self.task, "diagnostics", None)
+        if diagnostics is None or self.state is None:
+            return {}
+        result = diagnostics(self.state)
+        result["final_tcp_pose"] = self.environment.controller.frame_diagnostics()
+        result["final_tcp_error_m"] = dist(self.environment.controller.position(), self.environment.task.goal)
+        geometry = getattr(self.environment, "geometry_diagnostics", None)
+        if geometry is not None and self.diagnostics_provider is not None:
+            result.update(geometry(self.state.target().label))
+        return result
 
     def close(self):
         close = getattr(self.observer, "close", None)

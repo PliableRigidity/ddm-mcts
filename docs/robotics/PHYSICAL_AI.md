@@ -163,3 +163,7 @@ MUJOCO_GL=egl .venv/bin/python -m examples.robotics.validate_visual \
 Each unique run gets `acceptance.json` containing goal, perceived and true positions, maximum selected-target perception error, true final reaching error, action/observation counts, and planning time. This is a development acceptance check, not a benchmark. It exercises both signs of X and Y displacement and varying nearby distances. Target positions configure scene generation only.
 
 The audit also attempted targets hidden by the arm at startup and a farther target that remained occluded beyond six frames. These fail explicitly before another action; target visibility is a documented precondition, and bounded static tracking cannot solve persistent occlusion. The automated suite includes a poisoned privileged-target observation to prove that image perception ignores supplied true entity/task coordinates.
+
+## Real model implementation in V3
+
+V3 Phase 1 implements an optional Qwen3-VL perception backend with semantic image grounding and deterministic localization. This extends the VLM-to-state path above; the direct VLDM policy boundary is unchanged. See [LOCAL_VLM.md](LOCAL_VLM.md). All ground-truth/color examples in this guide remain valid.

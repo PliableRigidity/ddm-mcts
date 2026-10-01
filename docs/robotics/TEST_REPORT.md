@@ -182,3 +182,102 @@ All **57 pre-existing runtime/result files** match their pre-Phase-3 SHA-256 has
 Known limitations: RGB known-plane localization; named perspective fovy cameras only; explicit simulator robot proprioception and privileged dynamics snapshots; static targets and bounded six-frame tracking; color/lighting/visibility assumptions; position-only IK and nearby reaching, without collision/hardware safety guarantees; sequential GL/backend ownership. VLDM priors are root-only because future images are not modeled. No real model inference is validated.
 
 Deliberately deferred: real VLM/VLDM backends/training, arbitrary-depth perception, learned dynamics/belief tracking, real robots, ROS, grasping, RL, large downloads, cloud services, dashboards and any next phase. Recommended next action: personally inspect the pushed Phase 3 branch using PHYSICAL_AI.md before merging.
+
+## V3 Phase 1 — real local VLM — 2026-10-01
+
+Status: **COMPLETE; awaiting manual inspection, deliberately UNCOMMITTED/UNPUSHED** on `v3-phase1-vlm`. Baseline HEAD/main `fa9e489` merges the completed V2 checkpoint. Initial git status clean. Baseline complete suite: **83 passed in 46.14s**. PyTorch/Transformers/Pillow were absent in .venv; existing MuJoCo/numpy packages were preserved. NVIDIA RTX 4090 Laptop GPU, 16 GB VRAM, driver 572.83 (WSL NVIDIA-SMI 570.133.07), CUDA capability 12.8.
+
+### Validation gates and acceptance
+
+| Gate | Status | Verified evidence |
+|---|---|---|
+| 1 baseline | PASS | inspected branch/interfaces/docs/tests and 83 baseline tests |
+| 2 optional dependencies | PASS | uv install and package compatibility check; core-only suite |
+| 3 local GPU model | PASS | official Qwen3-VL 4B loaded on CUDA/bfloat16 |
+| 4 real standalone inference | PASS | MuJoCo RGB + language goal -> actual model JSON |
+| 5 structured parsing | PASS | valid/fenced/invalid schema and grounding tests |
+| 6 semantic scene | PASS | cube/sphere/cylinder with identical material, anonymous geom names |
+| 7 actual grounding | PASS | real Qwen recognized all three shape goals |
+| 8 metric geometry | PASS | image foreground refinement + calibrated ray-plane intersection |
+| 9 existing policy | PASS | Uniform real acceptance and mock TextLaya physical integration |
+| 10 actual MCTS | PASS | unchanged original search, snapshot/restored futures and root statistics |
+| 11 physical reach | PASS | actual Qwen-selected cylinder reaches headlessly |
+| 12 goal switch | PASS | same components/model/planner/controller, cylinder then cube then sphere |
+| 13 viewer | PASS | real WSL cylinder/cube viewer, selected-action execution and clean hold/shutdown |
+| 14 existing modes | PASS | old coordinate and red/blue CLI success; ground-truth tests retained |
+| 15 complete suite | PASS | 105 passed: 41 V1 + 42 V2 + 22 V3 |
+| 16 docs/logs | PASS | practical commands, conceptual guide, metrics/debug logs, changelog/report |
+
+Every definition-of-done item maps to these passing gates. Real VLM acceptance was performed, not inferred from mocks. No optional cloud/backend fallback is used. VLM semantics do not emit robot actions or policy priors; unchanged MCTS remains the final planner. Viewer automation verifies operation, not subjective appearance; human visual inspection remains recommended.
+
+### Model and performance
+
+Installed optional validation stack: torch **2.7.1+cu128**, torchvision **0.22.1+cu128**, transformers **4.57.6**, accelerate **1.15.0**, Pillow **12.3.0**. `uv pip check` reports all 57 installed packages compatible. Model: `Qwen/Qwen3-VL-4B-Instruct`, snapshot `ebb281ec70b05090aa6165b016eac8ec08e71b17`, normal cache `/home/ishaan/.cache/huggingface/hub/models--Qwen--Qwen3-VL-4B-Instruct/`. Only this model was downloaded; weights remain outside Git/repository.
+
+First standalone real sanity: cache-backed load **7.346 s**, first inference **3.313 s**, CUDA:0/bfloat16; raw response identified cylinder and bbox [543,400,595,466] in the initial more occluded camera view. This exposed geometry sensitivity; the final scene uses a clearer, higher oblique camera. Final three-goal acceptance: **one load, 7.941 s**, three inferences **3.393 / 2.692 / 2.695 s**, total **8.779 s**. Model remains loaded between goals/observations. These are local measurements, not promises; Hugging Face cache checks can add startup latency, and HF_HUB_OFFLINE=1 avoids checks after download.
+
+Generation uses official processor chat templating, input-token trimming, SDPA, greedy bounded output, no quantization/FlashAttention/vLLM. Normal suite has no real-model download/load requirement. The standalone/real acceptance utilities are explicitly invoked separately.
+
+### Real physical results
+
+Scene object centers share explicit calibration plane z=0.6245 m. Same teal material for every object; no text labels in RGB. VLM gets real RGB and goal, not simulator identities/positions. Refined estimates come from the selected box/material pixels and calibration. The table separates true diagnostic position from the visual estimate. Errors are mm; positions meters.
+
+| Goal | Diagnostic true center | Initial estimated center | Max localization error mm | True final reach error mm | Actions / observations | Planning s | Headless execution s | Unique run |
+|---|---|---|---:|---:|---|---:|---:|---|
+| cylinder | (0.6045, 0.08, 0.6245) | (0.604346, 0.080947, 0.6245) | 2.534 | 6.782 | 7 / 8 | 3.049 | 0.012 | 20261001T184534_7500a6cc39f6 |
+| cube | (0.5045, -0.08, 0.6245) | (0.5043, -0.079958, 0.6245) | 6.426 | 8.887 | 7 / 8 | 2.990 | 0.011 | 20261001T184550_15b2a4d35d08 |
+| sphere | (0.6245, -0.08, 0.6245) | (0.624418, -0.07993, 0.6245) | 5.941 | 5.999 | 8 / 9 | 3.328 | 0.013 | 20261001T184557_827d6acdb5ed |
+
+All succeeded with UniformPolicy, 60 MCTS simulations, horizon 3, seed 0, 2 cm actions, 150 physics steps/action and 12 mm estimated-goal success tolerance. Real raw responses and parsed boxes are in observations.jsonl/vlm_debug JSON and vlm_acceptance.json. Final object boxes: cylinder [565,404,625,500], cube [370,500,445,610], sphere [488,610,550,683]. All returned correct semantic labels. Self-reported confidence 0.92 is diagnostic, not a calibrated guarantee.
+
+Natural-language CLI acceptance also succeeded: `Reach the spherical object.` headlessly (`20261001T184856_cb8678dd61b2`); cylinder and cube viewer commands succeeded (`20261001T184735_3059f548e692`, `20261001T184752_3afd0e45486e`). Final scenes held, then controlled SIGINT returned expected **130** with clean shutdown. No orphan processes remain. Target marker is display-only and absent from observation frames. Speculative rollouts have no camera/model calls and no viewer publication, enforced by existing execution callback scopes and tests.
+
+Original Phase 2 headless command: `20261001T184857_1b765ccf1810`, success. Original red/blue color commands: `20261001T184859_f62058178225` / `20261001T184904_0a13ad568712`, both success.
+
+### Tests and hardening
+
+New V3 tests: **22 passed**. Cover dependency-light semantic JSON/fenced JSON normalization; malformed/missing/unknown values; invalid/non-finite/out-of-range boxes/confidence; lazy once-only runtime loading; RGB/goal validation; missing optional dependencies; simulated OOM; official runtime PIL conversion/chat template/input trimming through fakes; semantic caching/refresh/reset/goal changes; deterministic geometry; poisoned true entities/task coordinates; no lookup fallback; shared object material; old CLI defaults/new flags; mock VLM -> real TextLaya option priors -> unchanged physical MCTS; exact live snapshot preservation/no speculative observations; physical success; metrics/logs/debug images and default no-image behavior.
+
+Complete suite **105 passed**, no skips with Panda and EGL. Historical V1 separately **41 passed in 0.66s**; existing V2 robotics separately **42 passed in 41.45s**; new V3 separately **22 passed in 5.41s**. Core-only environment without torch/transformers/MuJoCo/numpy: **62 passed, 5 skipped** (four optional MuJoCo modules, new optional numpy/MuJoCo VLM module). Core installation remains dependency-free. Formatter/linter/whitespace pass. Normal model tests use an injected runtime factory and never call Hugging Face.
+
+Development findings: initial broad foreground threshold admitted blue floor pixels and biased localization up to ~16.5 mm. Tightening chromaticity tolerance to 0.12 and adding a blue-background regression fixture reduced final measured max errors to 2.53–6.43 mm. The first camera angle partly hid cylinder; final oblique pose reveals shapes more clearly. Greedy generation clears irrelevant sampling flags. Natural-language goals needed an explicit resolved object label for diagnostics/task matching; optional WorldState.resolved_target_label preserves V2 behavior while avoiding a language-to-simulator-name lookup. Missing DDM objective in a test fixture was corrected; no underlying DDM change was needed. No ground-truth repair/fallback was introduced.
+
+### Logging, limits, integrity and handoff
+
+Logs separate load versus inference time/count, include raw/parsed semantics, grounding, fresh localization/staleness, model/device/dtype/configuration, semantic cache age, goal, optional true-state/entity errors, search/action/execution data and success/failure. Default saves no image frames. Debug is opt-in per live observation. Exceptions retain summary diagnostics and stop rather than substituting privileged coordinates.
+
+Known limits: generated static same-material objects, configured known center-height plane, calibrated perspective camera, approximate silhouette center localization, initial visibility and bounded eight-frame static tracking. Refresh 0 caches semantics but still observes/localizes/plans after every action; dynamic objects/viewpoints need appropriate refresh/tracking. Qwen can produce semantically wrong but schema-valid boxes. CUDA acceptance only; CPU inference not performance-validated. Robot proprioception/dynamics initialization remain explicitly privileged simulator state. No grasping/collision/hardware safety claim.
+
+Integrity: all **235 pre-existing runtime/result files** match pre-V3 hashes; all **54 protected historical source/test/script/result files** remain byte-identical. MCTS, policies, MuJoCo backend and IK controller unchanged. Only authorized API/CLI/logging/docs/packaging additions modify stable toolkit files. No model weights, caches, generated images or logs are tracked. Git remains on v3-phase1-vlm with understandable source/docs/tests changes, and **no commit/push/merge** is performed.
+
+Exact sanity, cylinder/cube/sphere viewer, headless, original Phase 2 and original color commands are in LOCAL_VLM.md. Recommended next action: manually run the semantic viewer before checkpointing. V3 Phase 2/direct visual action scoring, training/RL, hardware/ROS, manipulation, extra models, cloud APIs, navigation and dashboards were deliberately not implemented.
+
+Final standalone rerun on the final camera/implementation: `robotics_runs/20261001T185450_vlm_sanity_4287db5f`, real cylinder grounding, offline cached load 4.596 s / inference 3.465 s. Final full suite rerun: **105 passed in 45.31s**. Optional editable packaging build and installed dependency compatibility check passed. Final git diff whitespace check passed; HEAD and main remain fa9e489, with all V3 changes uncommitted.
+
+## 2026-10-01 — Semantic reach penetration correction
+
+Baseline: 105 passed. Cause: localized object centroid was used directly as the goal and IK controlled the hand body, not the gripper TCP. Added configurable outside-object approach (40 mm radius prior + 50 mm standoff), lift-first receding-horizon waypoints, an invisible hand-local 103.4 mm TCP site with matching site Jacobian, and approach/frame/signed-clearance diagnostics. VLM and deterministic localization are unchanged. Legacy Phase 2 frame and CLI remain compatible.
+
+Regression coverage: four new tests (three physical shape cases plus invalid configuration), including non-centroid outside-object goals and positive gripper/target clearance at every executed physics substep. Existing centroid/hand API test now explicitly requests its legacy frame. Full suite: 109 passed (41 V1, 42 V2, 26 V3/current correction). No model download is required by normal tests.
+
+Real Qwen viewer acceptance, all three successful; windows held at final state and closed via Ctrl+C with no orphan processes:
+
+| Goal | Final TCP target error | Final minimum gripper clearance | Minimum selected-step clearance | Run |
+| --- | --- | --- | --- | --- |
+| cylinder | 5.12 mm | 29.35 mm | 29.32 mm | 20261001T201901_87f47f1dd15e |
+| cube | 8.13 mm | 39.61 mm | 27.73 mm | 20261001T201928_4e4a2f7d173f |
+| sphere | 4.37 mm | 38.90 mm | 30.42 mm | 20261001T201956_dd027565e27b |
+
+Viewer validation is automated initialization/execution/shutdown plus numerical clearance, not a substitute for human visual assessment. Diagnostics include center, extent prior, approach vector, standoff, final target/current waypoint, per-action requested endpoint, site/frame, final pose/error and optional true geometry sizes/signed distances. Unique ignored robotics_runs directories retain records. Historical outputs are preserved. Known limits: fixed conservative extent prior, position-only IK, lift-first staging rather than general obstacle avoidance, non-contact reaching only. No grasping, VLM changes or subsequent-phase features. Implementation remains uncommitted for manual inspection.
+
+## 2026-10-01 — V3 Phase 1 final checkpoint
+
+User acceptance: real Qwen viewer and corrected approach behavior manually validated. Finalization scope is source/tests/documentation only; no new phase or merge into main. Earlier uncommitted status and centroid-reaching measurements above describe prior chronological stages; final behavior is the outside-object gripper-TCP approach described in the correction section and LOCAL_VLM.md.
+
+Final checks: repository-wide Ruff lint passes. Robotics/VLM source/examples/tests formatting passes (34 files). Full-repository formatting reports 19 unchanged pre-existing baseline files; an isolated HEAD archive reproduces exactly 19 failures. Historical files are preserved rather than reformatted. Git whitespace checks pass. Original coordinate Panda reach and camera/color red and blue CLI commands succeeded again in unique runs 20261001T203001_d95607206e01, 20261001T203003_f22656e54380 and 20261001T203004_7cf3894af8f0.
+
+Real model remains Qwen/Qwen3-VL-4B-Instruct in external Hugging Face cache /home/ishaan/.cache/huggingface/hub/models--Qwen--Qwen3-VL-4B-Instruct/, snapshot ebb281ec70b05090aa6165b016eac8ec08e71b17. CUDA:0/bfloat16 on RTX 4090 Laptop. Recorded final cylinder viewer: load 11.551 s, inference 3.713 s, one model load and one cached semantic inference. Earlier shared-model three-goal validation measured load 7.941 s and first/subsequent inference 3.393/2.692/2.695 s. Model loading and inference are separate, environment-dependent measurements.
+
+All 235 protected pre-existing output files remain hash-identical. No V1 source/results/reports are changed. Stable V2 APIs remain compatible; the optional site-controller path is limited to semantic-scene use. Models, images, robotics_runs, virtualenvs and caches are excluded from the commit. Commit message: Complete V3 Phase 1 local VLM perception. Push current v3-phase1-vlm branch only, normal SSH push; no merge, force push or subsequent phase. Known limitations and deliberately deferred features remain as documented above.
+
+Final complete suite rerun before commit: **109 passed in 79.00 s**, no failures/skips: **41 V1 + 42 V2 + 26 V3/approach**. Real viewer cylinder/cube/sphere errors and positive clearances remain recorded in the correction table; human manual acceptance is now confirmed.
