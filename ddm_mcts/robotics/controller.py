@@ -5,6 +5,8 @@ from dataclasses import dataclass
 import mujoco
 import numpy as np
 
+from .mujoco_backend import copy_simulator_data
+
 
 @dataclass(frozen=True)
 class IKConfig:
@@ -45,7 +47,7 @@ class CartesianController:
             raise ValueError("invalid or excessive Cartesian displacement")
         model, data = self.backend.model, self.backend.data
         target = np.asarray(self.position()) + delta
-        mujoco.mj_copyData(self.scratch, model, data)
+        copy_simulator_data(model, data, self.scratch)
         scratch = self.scratch
         jac = np.zeros((3, model.nv))
         for _ in range(self.config.iterations):

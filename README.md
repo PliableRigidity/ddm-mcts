@@ -1,8 +1,18 @@
 # ddm-mcts
 
-**Reusable decision search with a headless robotics toolkit**
+**Decision and planning toolkit with perception-aware robotics**
 
-Phase 2 adds optional MuJoCo physical planning, snapshot-backed MCTS, Cartesian Panda reaching, swappable policies, and structured run logs. Start with the [robotics usage guide](docs/robotics/README.md), [architecture and concepts](docs/ARCHITECTURE_AND_CONCEPTS.md), and [validation report](docs/robotics/TEST_REPORT.md).
+DDM-MCTS combines pluggable decision policies, Monte Carlo Tree Search, and explicit transition/world models. Optional MuJoCo integration provides snapshot-backed physical planning, Cartesian Panda reaching, and structured run logs. Phase 3 adds camera observations, deterministic perception, semantic targets, and closed-loop physical agents. Start with the [robotics usage guide](docs/robotics/README.md), [perception-aware examples](docs/robotics/PHYSICAL_AI.md), [architecture and concepts](docs/ARCHITECTURE_AND_CONCEPTS.md), and [validation report](docs/robotics/TEST_REPORT.md).
+
+```mermaid
+flowchart LR
+    O[Observation] --> P[Perception / structured state]
+    P --> D[Policy + goal]
+    D --> M[MCTS]
+    W[Transition / world model] <--> M
+    M --> A[Selected action / controller]
+    A --> O
+```
 
 ```bash
 python -m pip install -e ".[dev,robotics]"

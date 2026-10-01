@@ -8,6 +8,8 @@ from math import dist, isfinite
 import mujoco
 import numpy as np
 
+from .mujoco_backend import copy_simulator_data
+
 
 def xyz(position):
     return "(" + ", ".join(f"{value:.4f}" for value in position) + ")"
@@ -34,7 +36,7 @@ class VisualInspection:
             from mujoco.viewer import launch_passive
 
             self._launch = launch_passive
-        mujoco.mj_copyData(self.data, self.model, self.world.backend.data)
+        copy_simulator_data(self.model, self.world.backend.data, self.data)
         existing_threads = set(threading.enumerate())
         self.viewer = self._launch(self.model, self.data)
         # Linux passive launch starts a daemon render thread. close() only requests
@@ -86,10 +88,22 @@ class VisualInspection:
     def _publish(self):
         self._check_open()
         with self.viewer.lock():
-            mujoco.mj_copyData(self.data, self.model, self.world.backend.data)
+            copy_simulator_data(self.model, self.world.backend.data, self.data)
             # Recompute render positions on the display copy, not the live state.
             mujoco.mj_forward(self.model, self.data)
         self.viewer.sync()
+
+    def perceived(self, state):
+        self._check_open()
+        with self.viewer.lock():
+            self.viewer.user_scn.geoms[0].pos[:] = state.goal
+        print("Observation acquired; perception:", flush=True)
+        for entity in state.entities:
+            status = "observed" if entity.observed else f"tracked ({entity.missed_frames} missed frames)"
+            print(f"  {entity.label}: {xyz(entity.position)} [{status}]", flush=True)
+        if state.semantic_goal is not None:
+            print(f"Goal: reach {state.semantic_goal.label} target", flush=True)
+        self._publish()
 
     def before_plan(self, state, step):
         self._check_open()
