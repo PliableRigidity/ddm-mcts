@@ -119,3 +119,68 @@ Real model remains Qwen/Qwen3-VL-4B-Instruct in external Hugging Face cache /hom
 All 235 protected pre-existing output files remain hash-identical. No V1 source/results/reports are changed. Stable V2 APIs remain compatible; the optional site-controller path is limited to semantic-scene use. Models, images, robotics_runs, virtualenvs and caches are excluded from the commit. Commit message: Complete V3 Phase 1 local VLM perception. Push current v3-phase1-vlm branch only, normal SSH push; no merge, force push or subsequent phase. Known limitations and deliberately deferred features remain as documented above.
 
 Final complete suite rerun before commit: **109 passed in 79.00 s**, no failures/skips: **41 V1 + 42 V2 + 26 V3/approach**. Real viewer cylinder/cube/sphere errors and positive clearances remain recorded in the correction table; human manual acceptance is now confirmed.
+
+## 2026-10-02 — V3 Phase 2 visual decision policy
+
+Status: implementation and real headless/viewer acceptance complete; uncommitted on v3-phase2-vldm for manual inspection. The initially clean Phase 2 branch pointed to V2 fa9e489; it was advanced to the existing Phase 1 ac50199 checkpoint before implementation, without creating a new commit or changing main. Baseline: **109 passed in 98.71 s**. Final regression suite so far: **127 passed in 121.92 s** (41 V1, 42 V2, 26 Phase 1/approach, 18 new Phase 2). No normal test needs Qwen, network or GUI. New tests cover strict/fenced/prose JSON, normalization, missing/unknown/duplicate IDs, zero/negative/nonfinite/nonnumeric scores, stable identity/order, calibrated action mapping, poison-answer exclusion, unchanged RGB, alpha 0/0.5/1, permutation averaging/remapping, fresh-image cache scopes, root-only guidance, honest uniform deeper nodes, model reuse, closed-loop observations, exact root-prior logs and CLI separation.
+
+Architecture: QwenVisualPolicy reuses the V2 VisualDecisionPolicy boundary, V1 MixedPolicy and PermutationAveragedPolicy. Qwen3VLBackend gains reusable generate(rgb,prompt); infer preserves its Phase 1 semantic schema and loader. One lazy model is shared across perception and visual decisions. Semantic perception supplies the structured evaluator target; the visual prompt receives no target XYZ, simulator body/geom ID, selected waypoint or answer. Camera/TCP proprioception supplies a magenta current-TCP overlay and calibrated local projected action deltas. Stable IDs are lexicographically ordered; K=1 default, optional K=2/3. Only the root has fresh RGB. Deep nodes use --policy (uniform default). No speculative rendering/model calls, direct argmax execution, new planner, new controller or physics changes.
+
+A deterministic snapshot-backed LineWorld test deliberately makes MOVE_X_NEG the model top choice with 100:1 weight. Actual MCTS selects MOVE_X_POS after 600 simulations, leaves live state unchanged and calls Qwen once; deeper priors are uniform. Physical fake-backend tests prove one shared load for semantic+visual adapters, a fresh observation after each executed action, no per-simulation inference, and actual root probabilities equal logged priors.
+
+Default alpha=0.5; alpha=0 skips visual scoring while preserving semantic perception. Visual CLI c_puct=0.05 matches meter-valued negative-distance rewards; existing modes retain 1.4. Initial real runs with 1.4 failed by over-lifting for all three goals despite positive clearance (runs 20261002T170436_de051b341f37, 20261002T170630_5b9df33527c7, 20261002T170843_fb3d2bd8b00d). These diagnostic runs remain intact. The simulator/objective were correct; oversized exploration plus persistent upward priors dominated limited-budget search. Calibrating PUCT enabled search recovery without leaking target coordinates, changing dynamics, removing standoff or overriding the selected action outside MCTS. Prompt hardening also fixed omitted IDs, copied uniform template values and quoted numeric outputs; invalid output is still rejected, not repaired silently.
+
+Real model: cached Qwen/Qwen3-VL-4B-Instruct, CUDA:0/bfloat16, external /home/ishaan/.cache/huggingface/hub/models--Qwen--Qwen3-VL-4B-Instruct/, snapshot ebb281ec70b05090aa6165b016eac8ec08e71b17. No weights were downloaded again. Standalone valid scoring: load 4.721 s, inference 2.723 s, six legal scores, initial MOVE_Z_POS top-1 (robot begins below clearance). Run visual_decision_sanity_3eacb5bbaed8. This is a prompted VLM-backed policy, not a specially trained robotics VLDM.
+
+### Real acceptance
+
+Settings: UniformPolicy at deeper nodes, 60 simulations, horizon 3, seed 0, 2 cm Cartesian actions, 150 physics substeps, alpha 0.5, c_puct 0.05, K=1. Original panda_gripper_tcp (103.4 mm hand-local Z), 40 mm configured radius, 50 mm standoff and lift-before-translate remain unchanged. Qwen repeatedly favors MOVE_Z_POS even after lifting; all actual horizontal motions below were selected by MCTS, not model argmax. There is no claim of improved semantic action quality or speed over uniform search. This limitation is deliberately exposed in raw outputs and diagnostics.
+
+| Goal | Headless actions / visual calls | MCTS overrides | Mean visual inference s | Headless search s | Final TCP error mm | Final clearance mm | Minimum selected-step clearance mm |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| cylinder | 17 / 17 | 7 | 2.466 | 3.159 | 5.118 | 29.351 | 29.324 |
+| cube | 16 / 16 | 6 | 2.166 | 3.117 | 8.097 | 39.615 | 27.731 |
+| sphere | 18 / 18 | 8 | 3.070 | 4.750 | 4.345 | 38.898 | 30.421 |
+
+Headless acceptance: robotics_runs/visual_policy_acceptance_94be1e07dbd2/acceptance.json. One model load (15.172 s), 54 total backend calls = 3 semantic + 51 physical visual calls. Logical visual requests=51, cache hits=0, misses=51. All succeeded. Full action/top-1 sequences and priors are in each run's steps.jsonl and acceptance.json.
+
+Final-prompt real viewer acceptance: robotics_runs/visual_policy_acceptance_501c66c86b9e/acceptance.json. One model load **5.754 s**, 54 backend calls, 51 logical/physical visual requests, no cache hits. All three succeeded with the same physical endpoint metrics. Viewer mean visual inference cylinder/cube/sphere: **3.000/3.579/4.280 s**; search **4.029/5.137/6.414 s**. Runs: 20261002T173042_312a823eecd2, 20261002T173149_1e96c7f732e0, 20261002T173302_3b1b8ae36f8f. Only selected execution publishes frames; Qwen/MCTS thinking leaves the displayed robot stationary. Automated utility holds final scene two seconds then closes; public CLI holds until normal close/Ctrl+C. Human visual correctness remains recommended. No orphan viewer processes are retained.
+
+Logging distinguishes shared model load/count, backend total calls, logical visual requests, cache hits/misses, physical visual calls/time/mean, policy wall time, MCTS search time excluding root-policy wall time, controller time and component-summed decision latency. Scores, descriptions/order, raw response, normalized visual distribution, alpha/mixed priors, top-1, visits/Q, selected action/agreement and final TCP/clearance are retained. No images are saved by default. New observations invalidate prior caches; only duplicate requests within one bound image can hit.
+
+Compatibility smoke: original Phase 2 coordinate task succeeded (20261002T173204_058d6b87ef24); red and blue color modes succeeded (20261002T173207_0b589da5a4eb, 20261002T173216_55bc5e894799). All 534 pre-existing outputs match pre-Phase-2 hashes. Historical V1 code/results/reports are untouched. Approach task, semantic scene, controller and per-substep clearance tests are unchanged. Ruff lint/changed Python formatting/whitespace pass; full repository formatting retains its 19 historical baseline failures.
+
+Files added: robotics/qwen_visual_policy.py; examples/robotics/visual_decision_sanity.py and validate_visual_policy.py; tests/test_visual_scores.py and tests/robotics/test_qwen_visual_policy.py; docs/robotics/VISUAL_DECISION.md. Files modified: robotics/cli.py, physical_agent.py, run.py, visual.py, vlm_backend.py; architecture guide, robotics README, LOCAL_VLM guide, this report and changelog. No new dependencies. No model/cache/image/run/virtualenv/credential artifacts are staged. No commit, push or merge.
+
+Known limitations: persistent upward visual bias; heuristic uncalibrated scores; generated static known-plane scene and approximate silhouette localization; root-only images; position-only approach; configured radius prior; no general collision safety. Alpha/budget/PUCT sensitivity remains material. No grasping, gripper closure, contact manipulation, training/fine-tuning, new model/cloud server, ROS/hardware, RL or Phase 3. Next action: manually inspect the visual-policy CLI before checkpointing. Exact commands and component/information boundaries: VISUAL_DECISION.md.
+
+Final rerun after all code hardening: **127 passed in 115.38 s**, no skips/failures. The permutation seed/cache state now uses only observation sequence and user goal (not privileged rollout snapshots); model loading, score generation and root selection remain unchanged. Exact public CLI visual mode succeeded headlessly with the natural-language cylindrical-object goal: 20261002T173459_ee7e1f977ec9. Original Phase 1 shared-model uniform-MCTS semantic acceptance was rerun for cylinder/cube/sphere and all succeeded (runs 20261002T173608_5bd9f3980790, 20261002T173635_dccaf2c5d390, 20261002T173651_0dd513d5010e).
+
+| Validation gates | Status | Evidence |
+| --- | --- | --- |
+| 1 baseline | PASS | 109 pre-change tests |
+| 2 existing visual boundary | PASS | VisualDecisionPolicy root binding reused |
+| 3 shared backend | PASS | one load across semantic/visual tests and real utility |
+| 4 standalone | PASS | real six-score numeric Qwen result |
+| 5–6 stable actions/parser | PASS | 14 schema tests and semantic remapping tests |
+| 7–8 root injection/deep fallback | PASS | logged priors equal root statistics; deep priors uniform |
+| 9–10 override/no argmax execution | PASS | actual MCTS overturns bad 100:1 root prior |
+| 11–12 fresh observations/no per-simulation Qwen | PASS | closed-loop tests; real 51 decisions/51 scoring calls |
+| 13–15 real goals | PASS | all three headless and viewer episodes succeed |
+| 16 TCP/standoff | PASS | unchanged source; per-substep clearance regressions; positive real clearances |
+| 17 viewer | PASS | real all-goal viewer execution/final hold/clean close |
+| 18 headless | PASS | all-goal utility and exact public CLI |
+| 19–21 regressions | PASS | 41 V1 + 42 V2 + 26 Phase 1 in full suite; legacy CLI/real Phase 1 reruns |
+| 22 docs/logging/accounting | PASS | source-matched guides, root stats/latency logs, persistent report/history |
+
+All definition-of-done items are covered by these passing gates. Meaningful visual-policy reliability remains a known limitation: the model often returns an upward prior independent of desired lateral direction; success requires the explicit search/evaluator, not a claim that Qwen is a trained or reliable robot controller.
+
+Exact public CLI viewer smoke: visual mode and original Phase 1 structured mode both succeeded, held final scenes, then returned expected Ctrl+C exit 130 with clean shutdown. Records: robotics_runs/cli_viewer_acceptance_ff977aed439b/acceptance.json. No acceptance Python/viewer process remains.
+
+## 2026-10-02 — V3 Phase 2 final checkpoint
+
+User manually accepted the real visual-policy cylinder viewer and safe TCP approach. Finalization retains all prior real results, including failed c_puct=1.4 runs, persistent Qwen upward bias, successful c_puct=0.05/alpha=0.5 search recovery, and the automated bad-prior override proof. Earlier uncommitted status describes the pre-checkpoint stage. Only appropriate source, tests and documentation are checkpointed on v3-phase2-vldm using “Complete V3 Phase 2 visual decision MCTS integration”; no merge into main, force push or new phase.
+
+Ruff lint, all ten changed/new Python files' formatting and git whitespace checks pass. TCP/controller/approach/semantic-scene/MCTS sources and original per-substep clearance tests are byte-identical to Phase 1 HEAD. All 534 pre-Phase-2 historical outputs remain hash-identical; all 802 current output files were additionally protected at finalization. Qwen weights remain in the external Hugging Face cache. No runtime/model/image/cache/virtualenv/credential artifacts belong in the commit. Documentation retains the distinction between VLM perception, prompted visual priors, structured DDM priors, MCTS selection and MuJoCo transitions.
+
+Final pre-commit suite: **127 passed in 101.73 s**, no failures/skips: **41 V1 + 42 V2 + 26 V3 Phase 1/approach + 18 V3 Phase 2**. Ruff lint, changed-code formatting, staged artifact/security scan and git whitespace checks pass. Existing results and limitations are preserved. Main remains fa9e489; only the current Phase 2 branch is pushed.

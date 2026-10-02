@@ -115,6 +115,10 @@ class VisualInspection:
             flush=True,
         )
 
+    def visual_decision(self, decision, action):
+        print("Qwen visual priors:", decision["normalized_visual_probabilities"], flush=True)
+        print(f"Qwen top-1: {decision['model_top1']}; MCTS selected: {action}; alpha: {decision['alpha']}", flush=True)
+
     def after_plan(self, action, seconds):
         self._check_open()
         print(f"  Action: {action}\n  Plan time: {seconds:.3f} s", flush=True)

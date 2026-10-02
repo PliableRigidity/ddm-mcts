@@ -246,3 +246,24 @@ See [local VLM usage](robotics/LOCAL_VLM.md) for exact commands, tested dependen
 ### Object localization and physical approach goals
 
 An estimated object center is a world-representation quantity, not automatically a safe robot destination. V3 semantic reach converts that center into an outside-object +Z approach using a configured conservative bounding radius plus standoff. It lifts before translating above the object. MCTS searches the current waypoint with the existing snapshot-backed transitions; fresh observations resolve subsequent waypoints. Semantic-scene IK uses the hand-local 103.4 mm gripper TCP site consistently for position and Jacobian, while legacy Phase 2 keeps its original hand-body frame. Optional signed geometry-clearance diagnostics are separate from inference and do not supply localization. This is position-only approach reaching, not general collision-aware manipulation.
+
+## V3 Phase 2: prompted visual action priors
+
+Phase 1 is image + language -> semantic grounding -> deterministic localization -> WorldState -> policy -> MCTS. Phase 2 adds image + language + candidate actions -> Qwen-backed visual policy -> root priors -> the same MCTS. Qwen is not specially trained as a robotics VLDM; this is a prompted implementation of the existing visual-decision boundary, distinct from semantic perception or structured DDM option scoring.
+
+```mermaid
+flowchart TD
+  O[Fresh live RGB + goal] --> VP[Prompted Qwen visual decision adapter]
+  A[Stable actions + calibrated local camera motion] --> VP
+  VP --> RP[Validated scores + V1 alpha/permutation mixing]
+  RP --> ROOT[Existing MCTS root]
+  ROOT --> FUT[Hypothetical nodes: structured / uniform policy]
+  WM[Snapshot-backed MuJoCo world model] <--> FUT
+  FUT --> SELECT[MCTS selected action]
+  SELECT --> IK[Existing TCP DLS controller]
+  IK --> O
+```
+
+Only the root has a real image. Deeper nodes use the configured structured policy; Qwen neither predicts physics nor scores every simulation. Semantic perception and visual scoring share one lazily loaded model, but target XYZ and simulator identity never enter the visual-scoring prompt. A projected current-TCP dot supplies explicit robot proprioception, while calibration computes each candidate's local camera pixel motion. Action identity survives reordered presentation; optional V1 permutation averaging costs multiple root inferences. V1 MixedPolicy supplies alpha trust, independently of PUCT exploration strength. Visual-mode CLI defaults c_puct to 0.05 for meter-valued reaching; earlier pipelines retain 1.4.
+
+The highest visual prior is not the final action: root visits and simulated outcomes determine the MCTS result. Tests show search overriding a 100:1 bad visual prior. Logs distinguish scores, mixed root priors, model top choice, MCTS choice, logical requests, cache hits, physical inference, load time, policy overhead, search and execution. Model scores are prompted preferences, not calibrated confidence. Poor priors can still damage limited-budget search. The controller and task preserve the above-object standoff, lift-first waypoints and gripper TCP; the red viewer marker is that waypoint. No grasping, training, contact manipulation or subsequent phase is added. See [visual-policy guide](robotics/VISUAL_DECISION.md).

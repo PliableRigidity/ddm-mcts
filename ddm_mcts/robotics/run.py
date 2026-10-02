@@ -49,6 +49,7 @@ def run_episode(world, planner, output_root="robotics_runs", *, configuration=No
     decisions = 0
     error = None
     total_planning_seconds = 0.0
+    total_search_seconds = total_execution_seconds = 0.0
     try:
         with (folder / "steps.jsonl").open("x", encoding="utf-8") as stream:
             while True:
@@ -64,12 +65,19 @@ def run_episode(world, planner, output_root="robotics_runs", *, configuration=No
                 result = planner.plan()
                 planning_seconds = time.perf_counter() - started
                 total_planning_seconds += planning_seconds
+                visual_policy = getattr(planner, "visual_policy", None)
+                visual_decision = getattr(visual_policy, "last", None)
+                search_seconds = max(0, planning_seconds - (visual_decision.get("visual_policy_seconds", 0) if visual_decision else 0))
+                total_search_seconds += search_seconds
+                if visual_decision and observer is not None and hasattr(observer, "visual_decision"):
+                    observer.visual_decision(visual_decision, result.action)
                 if observer is not None:
                     observer.after_plan(result.action, planning_seconds)
                 execution_started = time.perf_counter()
                 before_execution = world.get_state()
                 state = world.step(result.action) if observer is None else observer.execute(world, result.action)
                 execution_seconds = time.perf_counter() - execution_started
+                total_execution_seconds += execution_seconds
                 logged_state = planner.logged_state(state) if hasattr(planner, "logged_state") else state
                 record = {
                     "step": decisions + 1,
@@ -83,6 +91,19 @@ def run_episode(world, planner, output_root="robotics_runs", *, configuration=No
                     "root_statistics": [{**row, "action": str(row["action"])} for row in result.root_statistics()],
                 }
                 if hasattr(planner, "execution_diagnostics"):
+                    if visual_decision:
+                        record["visual_decision"] = {
+                            **visual_decision,
+                            "mcts_selected_action": str(result.action),
+                            "selected_equals_model_top1": str(result.action) == visual_decision["model_top1"],
+                        }
+                        record["mcts_search_seconds"] = search_seconds
+                        record["end_to_end_decision_seconds"] = (
+                            planning_seconds
+                            + execution_seconds
+                            + planner.decision_context["observation_seconds"]
+                            + planner.decision_context["perception_seconds"]
+                        )
                     execution_diagnostics = planner.execution_diagnostics()
                     if execution_diagnostics:
                         record["execution_diagnostics"] = execution_diagnostics
@@ -112,6 +133,8 @@ def run_episode(world, planner, output_root="robotics_runs", *, configuration=No
             "perception_diagnostics": getattr(getattr(planner, "perception", None), "diagnostics", lambda: {})(),
             "execution_diagnostics": getattr(planner, "execution_diagnostics", lambda: {})(),
             "total_planning_seconds": total_planning_seconds,
+            "total_mcts_search_seconds": total_search_seconds,
+            "total_execution_seconds": total_execution_seconds,
             "policy_diagnostics": (
                 planner.policy_diagnostics()
                 if hasattr(planner, "policy_diagnostics")
