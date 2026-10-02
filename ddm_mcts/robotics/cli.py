@@ -24,8 +24,17 @@ def build_parser():
     parser.add_argument("--model", default=os.environ.get("PANDA_MODEL"), help="Menagerie Panda scene.xml or panda.xml")
     parser.add_argument("--target", nargs=3, type=float, help="XYZ required for the original reach task")
     parser.add_argument("--policy", choices=("uniform", "laya", "mica"), default="uniform")
+    parser.add_argument(
+        "--decision-policy",
+        choices=("structured", "visual"),
+        default="structured",
+        help="visual: Qwen root priors; --policy remains the deeper-node policy",
+    )
+    parser.add_argument("--visual-alpha", type=float, default=0.5, help="V1 uniform/visual root prior trust mixing")
+    parser.add_argument("--visual-permutations", type=int, choices=(1, 2, 3), default=1)
     parser.add_argument("--simulations", type=int, default=60)
     parser.add_argument("--horizon", type=int, default=3)
+    parser.add_argument("--c-puct", type=float, help="exploration coefficient; default 0.05 for visual decisions, 1.4 otherwise")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--increment", type=float, default=0.02)
     parser.add_argument("--epsilon", type=float, default=0.012)
@@ -60,6 +69,13 @@ def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
     args.goal = args.goal or ("Reach the cylindrical object." if args.task == "semantic-reach" else "red")
+    if args.decision_policy == "visual" and args.task != "semantic-reach":
+        parser.error("visual decision mode requires --task semantic-reach")
+    if not 0 <= args.visual_alpha <= 1:
+        parser.error("--visual-alpha must be between 0 and 1")
+    c_puct = args.c_puct if args.c_puct is not None else (0.05 if args.decision_policy == "visual" else 1.4)
+    if not isfinite(c_puct) or c_puct < 0:
+        parser.error("--c-puct must be finite and nonnegative")
     if args.task == "visual-reach" and args.goal not in ("red", "blue"):
         parser.error("visual-reach goal must be red or blue")
     if args.task != "semantic-reach" and args.perception == "vlm":
@@ -101,7 +117,7 @@ def main(argv=None):
     if args.policy != "uniform":
         cls = TextLayaPolicy if args.policy == "laya" else MicaPolicy
         policy = cls(state_text, objective="Move the hand toward the target XYZ.", action_text=lambda a: f"{a.name}: {a.displacement}")
-    planner = RoboticsPlanner(world, policy, MCTSConfig(args.simulations, seed=args.seed), args.horizon)
+    planner = RoboticsPlanner(world, policy, MCTSConfig(args.simulations, c_puct=c_puct, seed=args.seed), args.horizon)
     agent = None
     if args.task != "reach" or args.observation is not None or args.perception is not None:
         from .observation import GroundTruthObservationProvider, SemanticGoal
@@ -129,8 +145,9 @@ def main(argv=None):
                 from .vlm_backend import Qwen3VLBackend, VLMConfig
                 from .vlm_perception import VLMSemanticPerception
 
+                qwen_backend = Qwen3VLBackend(VLMConfig(args.vlm_model, args.vlm_device, args.vlm_max_new_tokens))
                 perception_provider = VLMSemanticPerception(
-                    Qwen3VLBackend(VLMConfig(args.vlm_model, args.vlm_device, args.vlm_max_new_tokens)),
+                    qwen_backend,
                     SEMANTIC_PLANE_Z,
                     OBJECT_RGB,
                     refresh=args.vlm_refresh,
@@ -148,6 +165,11 @@ def main(argv=None):
             from .approach import ApproachReachTask
 
             task = ApproachReachTask(SemanticGoal(args.goal), args.epsilon, args.max_steps, args.standoff, args.object_radius)
+        visual_policy = None
+        if args.decision_policy == "visual":
+            from .qwen_visual_policy import QwenVisualPolicy
+
+            visual_policy = QwenVisualPolicy(qwen_backend, alpha=args.visual_alpha, permutations=args.visual_permutations, seed=args.seed)
         agent = PhysicalAgent(
             world,
             observation_provider,
@@ -156,6 +178,7 @@ def main(argv=None):
             planner,
             diagnostics=entity_provider if args.diagnostics else None,
             save_images=args.save_images,
+            visual_policy=visual_policy,
         )
     if args.viewer:
         from .visual import ViewerClosed, VisualInspection

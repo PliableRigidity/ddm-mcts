@@ -125,13 +125,13 @@ class Qwen3VLBackend:
         self.inference_seconds = []
         self.last_response = None
 
-    def infer(self, rgb, goal: str) -> SemanticResult:
+    def generate(self, rgb, prompt: str) -> str:
         import numpy as np
 
         if not isinstance(rgb, np.ndarray) or rgb.dtype != np.uint8 or rgb.ndim != 3 or rgb.shape[2] != 3:
             raise ValueError("VLM input must be uint8 RGB HxWx3")
-        if not goal.strip():
-            raise ValueError("VLM requires a language goal")
+        if not prompt.strip():
+            raise ValueError("VLM requires a nonempty prompt")
         if self.runtime is None:
             started = perf_counter()
             try:
@@ -140,13 +140,6 @@ class Qwen3VLBackend:
                 raise RuntimeError(f"Cannot load local VLM {self.config.model_id}: {exc}") from exc
             self.load_seconds = perf_counter() - started
             self.load_count += 1
-        prompt = (
-            f"Goal: {goal}. Identify the requested freestanding geometric object in this image, not robot parts. "
-            "Return ONLY one JSON object with target_label (shape name), target_description, bbox_2d [x1,y1,x2,y2], "
-            "and confidence (number 0..1 or null). The bounding box tightly encloses that entire object. "
-            "Use relative image coordinates 0..1000, origin top-left, x right, y down. "
-            "If absent, use target_label=unknown. Never output world coordinates or robot actions."
-        )
         started = perf_counter()
         self.calls += 1
         try:
@@ -156,7 +149,19 @@ class Qwen3VLBackend:
             raise RuntimeError(f"Local VLM inference failed (device {self.runtime.device}); check memory/model/input: {exc}") from exc
         finally:
             self.inference_seconds.append(perf_counter() - started)
-        return parse_semantics(raw)
+        return raw
+
+    def infer(self, rgb, goal: str) -> SemanticResult:
+        if not goal.strip():
+            raise ValueError("VLM requires a language goal")
+        prompt = (
+            f"Goal: {goal}. Identify the requested freestanding geometric object in this image, not robot parts. "
+            "Return ONLY one JSON object with target_label (shape name), target_description, bbox_2d [x1,y1,x2,y2], "
+            "and confidence (number 0..1 or null). The bounding box tightly encloses that entire object. "
+            "Use relative image coordinates 0..1000, origin top-left, x right, y down. "
+            "If absent, use target_label=unknown. Never output world coordinates or robot actions."
+        )
+        return parse_semantics(self.generate(rgb, prompt))
 
     def diagnostics(self):
         return {

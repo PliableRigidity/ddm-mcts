@@ -147,3 +147,5 @@ The original viewer command remains valid:
 ```
 
 Replace the goal with `Reach the cube.` or `Reach the spherical object.` for the other objects. This remains position-only reaching with unchanged physics, localization and MCTS. Lift-first staging is not general collision avoidance; orientation is unconstrained and there is no grasping/contact manipulation. Signed diagnostics use collision geometry, which can differ from visual meshes. Human inspection remains useful.
+
+V3 Phase 2 optionally adds a [VLM-backed visual decision policy](VISUAL_DECISION.md) via `--decision-policy visual`. Perception remains separate; fresh-image priors guide only the MCTS root, with the existing configured policy at deeper nodes. The safe approach waypoint remains above the object.

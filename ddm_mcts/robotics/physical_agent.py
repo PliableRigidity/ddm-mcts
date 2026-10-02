@@ -99,7 +99,10 @@ class PhysicalAgent:
     def plan(self):
         state = self.prepare()
         try:
-            return self.planner.plan(state, state_projection=state.predict_observation)
+            result = self.planner.plan(state, state_projection=state.predict_observation)
+            if self.visual_policy is not None:
+                self.decision_context["visual_decision"] = self.visual_policy.diagnostics()
+            return result
         finally:
             self._prepared = False
 

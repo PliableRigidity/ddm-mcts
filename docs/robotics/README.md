@@ -110,3 +110,5 @@ The original Phase 2 reach command and headless/viewer defaults remain supported
 The optional `vlm` extra adds Qwen3-VL-4B-Instruct to the existing pipeline. The VLM identifies/grounds a requested shape; deterministic geometry localizes it; the original policy/MCTS/IK performs physical reaching. Cube, sphere and cylinder share one color, so semantic selection comes from the image/model. Ground-truth and red/blue color commands above remain unchanged.
 
 See [LOCAL_VLM.md](LOCAL_VLM.md) for installation, GPU/model cache, standalone sanity check, cylinder/cube/sphere viewer commands, refresh/debugging options, logs and limitations. The default backend loads one local model per backend; normal tests use fakes and never download weights. V3 work remains uncommitted on `v3-phase1-vlm` pending manual inspection.
+
+V3 Phase 2 optionally adds a [VLM-backed visual decision policy](VISUAL_DECISION.md) via `--decision-policy visual`. Perception remains separate; fresh-image priors guide only the MCTS root, with the existing configured policy at deeper nodes. The safe approach waypoint remains above the object.
