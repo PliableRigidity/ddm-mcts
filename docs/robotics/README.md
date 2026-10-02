@@ -104,3 +104,9 @@ The toolkit now supports explicit ground-truth observations and real MuJoCo came
 Change only `--goal blue` to select the other target. Omit `--viewer` for headless operation; set `MUJOCO_GL=egl` before starting Python when an offscreen backend is needed. Camera resolution/name are configurable, `--diagnostics` compares estimated positions against simulation truth, and `--save-images` optionally retains one RGB frame per live observation. Targets are genuinely detected from pixels using camera calibration and a known plane. Robot proprioception and dynamics initialization explicitly remain simulator-native. Model-based perception and direct visual decision interfaces are optional, mock-tested boundaries; no real VLM/VLDM is installed or required.
 
 The original Phase 2 reach command and headless/viewer defaults remain supported. Both phases retain unique logs under `robotics_runs/`; camera observations and viewer updates never run inside speculative search.
+
+## Real local VLM perception — V3 Phase 1
+
+The optional `vlm` extra adds Qwen3-VL-4B-Instruct to the existing pipeline. The VLM identifies/grounds a requested shape; deterministic geometry localizes it; the original policy/MCTS/IK performs physical reaching. Cube, sphere and cylinder share one color, so semantic selection comes from the image/model. Ground-truth and red/blue color commands above remain unchanged.
+
+See [LOCAL_VLM.md](LOCAL_VLM.md) for installation, GPU/model cache, standalone sanity check, cylinder/cube/sphere viewer commands, refresh/debugging options, logs and limitations. The default backend loads one local model per backend; normal tests use fakes and never download weights. V3 work remains uncommitted on `v3-phase1-vlm` pending manual inspection.

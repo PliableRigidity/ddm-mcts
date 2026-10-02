@@ -22,10 +22,12 @@ class IKConfig:
 
 
 class CartesianController:
-    def __init__(self, backend, body: str, joints: tuple[str, ...], actuators: tuple[str, ...], config=None):
+    def __init__(self, backend, body: str, joints: tuple[str, ...], actuators: tuple[str, ...], config=None, *, site: str | None = None):
         self.backend, self.config = backend, config or IKConfig()
         model = backend.model
         self.body = model.body(body).id
+        self.site = model.site(site).id if site is not None else None
+        self.frame_name = site or body
         self.joints = np.array([model.joint(name).id for name in joints])
         self.qpos = model.jnt_qposadr[self.joints]
         self.dofs = model.jnt_dofadr[self.joints]
@@ -39,7 +41,20 @@ class CartesianController:
         self.scratch = mujoco.MjData(model)
 
     def position(self):
-        return tuple(float(x) for x in self.backend.data.xpos[self.body])
+        return tuple(float(x) for x in self._position(self.backend.data))
+
+    def _position(self, data):
+        return data.site_xpos[self.site] if self.site is not None else data.xpos[self.body]
+
+    def frame_diagnostics(self):
+        data = self.backend.data
+        rotation = data.site_xmat[self.site] if self.site is not None else data.xmat[self.body]
+        return {
+            "frame_type": "site" if self.site is not None else "body",
+            "frame_name": self.frame_name,
+            "position": self.position(),
+            "rotation_matrix": tuple(float(x) for x in rotation),
+        }
 
     def execute(self, displacement):
         delta = np.asarray(displacement, dtype=float)
@@ -52,10 +67,13 @@ class CartesianController:
         jac = np.zeros((3, model.nv))
         for _ in range(self.config.iterations):
             mujoco.mj_forward(model, scratch)
-            error = target - scratch.xpos[self.body]
+            error = target - self._position(scratch)
             if np.linalg.norm(error) <= self.config.tolerance:
                 break
-            mujoco.mj_jacBody(model, scratch, jac, None, self.body)
+            if self.site is not None:
+                mujoco.mj_jacSite(model, scratch, jac, None, self.site)
+            else:
+                mujoco.mj_jacBody(model, scratch, jac, None, self.body)
             j = jac[:, self.dofs]
             dq = j.T @ np.linalg.solve(j @ j.T + self.config.damping**2 * np.eye(3), error)
             scratch.qpos[self.qpos] += np.clip(dq, -self.config.max_joint_update, self.config.max_joint_update)

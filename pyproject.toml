@@ -12,6 +12,7 @@ dependencies = []
 
 [project.optional-dependencies]
 robotics = ["mujoco>=3.3,<4", "numpy>=1.26"]
+vlm = ["torch>=2.6,<3", "torchvision>=0.21", "transformers>=4.57,<5", "accelerate>=1", "Pillow>=10"]
 dev = ["pytest>=8", "ruff>=0.6"]
 laya = ["laya>=0.3"]
 # Mica is served by its official SystemOne HTTP server; the client uses Python's stdlib.
