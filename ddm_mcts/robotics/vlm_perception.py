@@ -27,6 +27,8 @@ class VLMSemanticPerception:
         self.backend, self.plane_z = backend, plane_z
         self.foreground = color / color.sum()
         self.refresh, self.debug, self.max_missed_frames = refresh, debug, max_missed_frames
+        self.requests = self.inference_calls = self.cache_hits = 0
+        self.inference_seconds = 0.0
         self.reset()
 
     def reset(self):
@@ -41,11 +43,19 @@ class VLMSemanticPerception:
         if rgb.dtype != np.uint8 or rgb.shape != (camera.height, camera.width, 3):
             raise ValueError("expected calibrated uint8 RGB HxWx3")
         key = (goal.label, camera)
+        self.requests += 1
         refreshed = self.semantic is None or key != self._key or (self.refresh > 0 and self._age >= self.refresh)
         if refreshed:
-            result = self.backend.infer(rgb, goal.label)
+            before = len(self.backend.inference_seconds)
+            try:
+                result = self.backend.infer(rgb, goal.label)
+            finally:
+                self.inference_calls += len(self.backend.inference_seconds) - before
+                self.inference_seconds += sum(self.backend.inference_seconds[before:])
             self.semantic, self._key, self._age = result, key, 0
             self.previous, self._area = None, 0
+        else:
+            self.cache_hits += 1
         self._age += 1
         box = self.semantic.bbox
         x1, y1, x2, y2 = (v * (camera.width if i % 2 == 0 else camera.height) for i, v in enumerate(box))
@@ -95,7 +105,14 @@ class VLMSemanticPerception:
         }
 
     def diagnostics(self):
-        return {**self.last, "backend": self.backend.diagnostics()}
+        return {
+            **self.last,
+            "backend": self.backend.diagnostics(),
+            "logical_perception_requests": self.requests,
+            "physical_perception_inference_calls": self.inference_calls,
+            "perception_cache_hits": self.cache_hits,
+            "physical_perception_inference_seconds": self.inference_seconds,
+        }
 
     def save_debug(self, folder, observation):
         if not self.debug or not self.last:

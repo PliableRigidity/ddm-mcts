@@ -1,5 +1,7 @@
 # Robotics toolkit usage
 
+V3 Phase 3 adds [ordered physical-AI tasks](MULTI_STEP_AGENT.md), using `PhysicalAgent.run_task` and `--task multi-semantic-reach --instruction 'Approach the cylinder, then the sphere, then the cube.'`. One scene, robot, camera, controller, viewer and loaded Qwen session persist across goals. Existing single-target commands below remain valid. See the guide for exact perception/visual-policy commands, physical verification, trace and bounded language grammar.
+
 Phase 2 adds headless physical planning while retaining the historical experiments. Python 3.11+ is required. Install optional dependencies with:
 
 ```bash

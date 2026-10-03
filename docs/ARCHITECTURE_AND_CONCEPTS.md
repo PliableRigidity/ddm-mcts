@@ -1,6 +1,6 @@
 # Architecture and concepts: decisions, search, and physical futures
 
-This guide covers the historical decision experiments, the Phase 2 robotics toolkit, and the Phase 3 perception-aware extension. Historical code is in `ddm_mcts/environments`, `policies`, `search`, `agents`, and `evaluation`; robotics is in `ddm_mcts/robotics`. The experiment filenames containing v2/v4 predate the robotics phase and remain historical code. This checkout contains only `results/.gitkeep`, not numerical experiment reports, so this guide makes no numerical V1 performance claims.
+This guide covers V1 decision experiments, V2 robotics/perception, and V3 local Qwen perception, visual priors and ordered physical tasks. Historical code is in `ddm_mcts/environments`, `policies`, `search`, `agents`, and `evaluation`; robotics is in `ddm_mcts/robotics`. Early unqualified Phase 2/3 sections describe the V2 checkpoints; the V3 sections extend them. The experiment filenames containing v2/v4 predate the robotics phase and remain historical code. This checkout contains only `results/.gitkeep`, not numerical experiment reports, so this guide makes no numerical V1 performance claims.
 
 ## Direct decisions and deliberation
 
@@ -191,7 +191,7 @@ Acquisition, perception, planning, execution, and logging are separate latency c
 
 ## Structured VLM perception versus direct VLDM decisions
 
-The existing structured policy boundary remains `π(a | s_hat, g)`. A future VLM can implement ModelPerceptionAdapter's injected `(observation, goal) -> WorldState` predictor. That is image interpretation followed by a separate structured decision model and MCTS. The current code validates schema/goal identity and tests an offline predictor; it contains no real VLM backend.
+The existing structured policy boundary remains `π(a | s_hat, g)`. A model can implement ModelPerceptionAdapter's injected `(observation, goal) -> WorldState` predictor. That is image interpretation followed by a separate structured decision model and MCTS. The V2 Phase 3 checkpoint validated this schema/goal boundary using an offline predictor and had no real VLM backend; V3 Phase 1 below implements the local Qwen backend.
 
 A direct VLDM instead scores `(image, language goal, candidate actions) -> P(actions)`. VisualDecisionModel and VisualDecisionPolicy define that separate optional boundary. PhysicalAgent binds the latest live image before each decision and attaches the adapter as MCTS's root policy. Deeper nodes use ordinary uniform/structured DDM priors, because Phase 3 has no predicted future-image generator. Calling the direct visual adapter at non-root states is rejected; reusing a live image as though it depicted a future state would be misleading.
 
@@ -207,7 +207,7 @@ flowchart LR
   RP --> M
 ```
 
-The two paths can coexist, but a callable interface or injected mock is not a trained model. No VLM/VLDM training, automatic model download, hardware integration, ROS, or reinforcement learning is implemented.
+The two paths can coexist, but a callable interface or injected mock is not a trained model. V2 added no model download, hardware integration, ROS or reinforcement learning. V3 optionally loads/downloads the one configured local Qwen model through the standard external cache, and still adds no model training or hardware integration.
 
 ## Ground-truth diagnostics and sim-to-real considerations
 
@@ -266,4 +266,43 @@ flowchart TD
 
 Only the root has a real image. Deeper nodes use the configured structured policy; Qwen neither predicts physics nor scores every simulation. Semantic perception and visual scoring share one lazily loaded model, but target XYZ and simulator identity never enter the visual-scoring prompt. A projected current-TCP dot supplies explicit robot proprioception, while calibration computes each candidate's local camera pixel motion. Action identity survives reordered presentation; optional V1 permutation averaging costs multiple root inferences. V1 MixedPolicy supplies alpha trust, independently of PUCT exploration strength. Visual-mode CLI defaults c_puct to 0.05 for meter-valued reaching; earlier pipelines retain 1.4.
 
-The highest visual prior is not the final action: root visits and simulated outcomes determine the MCTS result. Tests show search overriding a 100:1 bad visual prior. Logs distinguish scores, mixed root priors, model top choice, MCTS choice, logical requests, cache hits, physical inference, load time, policy overhead, search and execution. Model scores are prompted preferences, not calibrated confidence. Poor priors can still damage limited-budget search. The controller and task preserve the above-object standoff, lift-first waypoints and gripper TCP; the red viewer marker is that waypoint. No grasping, training, contact manipulation or subsequent phase is added. See [visual-policy guide](robotics/VISUAL_DECISION.md).
+The highest visual prior is not the final action: root visits and simulated outcomes determine the MCTS result. Tests show search overriding a 100:1 bad visual prior. Logs distinguish scores, mixed root priors, model top choice, MCTS choice, logical requests, cache hits, physical inference, load time, policy overhead, search and execution. Model scores are prompted preferences, not calibrated confidence. Poor priors can still damage limited-budget search. The controller and task preserve the above-object standoff, lift-first waypoints and gripper TCP; the red viewer marker is that waypoint. No grasping, training, contact manipulation or subsequent phase is added in the Phase 2 checkpoint. See [visual-policy guide](robotics/VISUAL_DECISION.md).
+
+## V3 Phase 3: unified ordered physical-AI agent
+
+The final V3 extension composes existing components into multi-step physical tasks. `PhysicalAgent.run_task(PhysicalTask)` delegates ordered-goal coordination to `OrderedTaskRunner`; it does not introduce another planner, perception implementation or controller. Observation, perception, decision prior, physical transitions and execution retain their established interfaces. Single-goal `run` and existing reset behavior remain supported.
+
+```mermaid
+flowchart TD
+  L[Language task: bounded approach list] --> TM[Ordered task manager]
+  TM --> G[Current semantic goal]
+  G --> O[Observation provider]
+  O --> P[Ground truth / classical / Qwen perception]
+  P --> S[World representation]
+  S --> D[Uniform / DDM / visual Qwen prior]
+  D --> M[Existing MCTS]
+  WM[MuJoCo world model] <--> M
+  M --> C[Existing TCP DLS controller]
+  C --> R[Robot]
+  R --> O
+  R --> V[Physical subgoal verifier]
+  V -->|incomplete| O
+  V -->|succeeded| N[Next subgoal]
+  N --> G
+  V -->|failed| F[Stop and preserve trace]
+  N -->|all succeeded| DONE[Task complete]
+```
+
+The deterministic parser recognizes ordered cube/cylinder/sphere lists starting with Approach, Visit or Go to, using commas/then/and. Unsupported operations and unknown words are rejected; this is not unrestricted language planning. `PhysicalTask` retains the original instruction and stable per-occurrence `ApproachGoal` IDs and completion criteria. Runtime statuses, timestamps, measurements and results live in the task trace. The runner stops on failure, preserves completed results, and leaves unexecuted goals pending.
+
+Execution uses the original closed-loop run: fresh observation, perception, goal resolution, policy/MCTS and one selected action, repeated. When a subgoal's run terminates, `ApproachVerifier` independently checks actual TCP proximity to the final outside-object waypoint, resolved semantic identity and signed all-object clearance. Where true scene entities exist, it also checks proximity to the requested object's true approach waypoint at the same tolerance. This distinguishes physical visitation from merely reaching an incorrect estimate or the intermediate lift. Simulator truth is explicit evaluation only: it is never supplied to Qwen, used to repair localization or substituted as a planning target. Without geometry/entity evaluation support, respective verification metrics remain unavailable and collision safety is not inferred.
+
+Physical integration state persists across goals: joints, velocities, actuator commands, time and cumulative action count. The same environment, camera and controller persist. The next action budget is an absolute terminal bound `current_steps + max_actions`, so preserved counters do not prematurely exhaust later goals. Full integration snapshots and physical records are checked before/after goal preparation. End-of-goal records match next-goal starts, apart from the intentionally changed objective.
+
+Physical persistence differs from goal-dependent memory. MCTS constructs a new tree on every call, discarding old objective values/visits while retaining its planner object and RNG. Perception grounding/tracking is cleared at each subgoal transition; fresh RGB rebinds visual priors and invalidates old goal/image context. Qwen weights and processor remain loaded. Semantic perception and prompted visual decisions share one backend, with separate logical/physical request accounting and one model load.
+
+Safe travel reuses lift-first approach staging. The demonstration objects share a plane, and their outside-object TCP waypoints lie above it. Travel between cleared poses stays above the geometry. A live-execution observer checks signed gripper clearance against every scene object during each physics substep, without observing speculative branches. Nested observers allow these checks with one continuous viewer. This is failure detection and validation for a simple scene, not general collision planning or orientation-aware manipulation.
+
+Phase 1 supplies semantic perception; Phase 2 supplies root-only prompted visual priors; Phase 3 adds ordered task management, physical verification, persistent execution and trace. Qwen's upward-motion bias remains: successful visual multi-step runs retain alpha=0.5 and c_puct=0.05 and rely on MCTS overriding those priors. The failed c_puct=1.4 Phase 2 trials remain intact. Recovery is not evidence of improved model action reasoning or real-hardware safety.
+
+The trace records instruction/order/status, physical state continuity, cache/model metrics, action and Qwen top-choice sequences, MCTS disagreements, waypoint errors, clearances and timings. Detailed priors/root statistics/raw responses remain in referenced original robotics logs. See [multi-step usage](robotics/MULTI_STEP_AGENT.md) and [validation](robotics/TEST_REPORT.md). The bounded object set, calibrated-plane localization, configured extent priors, position-based controller, lack of a general collision planner and absence of grasping remain deliberate limits. No V4 work is included.

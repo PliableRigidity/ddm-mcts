@@ -1,5 +1,7 @@
 # Local VLM perception — V3 Phase 1
 
+V3 Phase 3 composes this same backend/perception into [ordered multi-step tasks](MULTI_STEP_AGENT.md). Goal changes clear grounding/tracking while preserving the model and cumulative inference metrics. Existing single-goal commands and Phase 1 results below remain unchanged.
+
 This adds a third perception option to the existing toolkit: real local Qwen3-VL semantics, deterministic metric localization, then the original policy/MCTS/physics/IK pipeline. Ground-truth and color modes retain their existing commands. V3 Phase 1 has been manually validated in the real Qwen viewer, including the outside-object approach. The implementation is checkpointed on `v3-phase1-vlm`; main is not merged as part of finalization.
 
 ## Install

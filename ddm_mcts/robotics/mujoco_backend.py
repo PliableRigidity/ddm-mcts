@@ -77,7 +77,13 @@ class MujocoBackend:
     def observe_steps(self, callback: Callable[[], None]):
         """Observe physics only inside an explicit execution scope, never search."""
         previous = self._step_callback
-        self._step_callback = callback
+
+        def notify():
+            if previous is not None:
+                previous()
+            callback()
+
+        self._step_callback = notify
         try:
             yield
         finally:

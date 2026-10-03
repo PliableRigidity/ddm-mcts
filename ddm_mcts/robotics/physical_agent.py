@@ -30,6 +30,8 @@ class PhysicalAgent:
         self._folder = None
         self._saved_sequences = set()
         self.decision_context = {}
+        self.perception_requests = 0
+        self.total_observation_seconds = self.total_perception_seconds = 0.0
         self.run_configuration = {
             "observation_provider": type(observer).__name__,
             "perception_provider": type(perception).__name__,
@@ -52,8 +54,13 @@ class PhysicalAgent:
             started = perf_counter()
             observation = self.observer.observe()
             observation_seconds = perf_counter() - started
+            self.total_observation_seconds += observation_seconds
             started = perf_counter()
-            state = self.perception.perceive(observation, self.task.goal)
+            self.perception_requests += 1
+            try:
+                state = self.perception.perceive(observation, self.task.goal)
+            finally:
+                self.total_perception_seconds += perf_counter() - started
             prepare_state = getattr(self.task, "prepare_state", None)
             if prepare_state is not None:
                 state = prepare_state(state)
@@ -166,6 +173,16 @@ class PhysicalAgent:
             "structured": getattr(self.search.policy, "diagnostics", lambda: {})(),
             "direct_visual": self.visual_policy.diagnostics() if self.visual_policy is not None else None,
         }
+
+    def run_task(self, task, output_root="robotics_runs", *, visualization=None, configuration=None, verifier=None):
+        """Execute an ordered PhysicalTask without resetting the physical world.
+
+        All components, including a loaded model and optional viewer, persist.
+        Goal-dependent caches refresh and every subgoal has a new action budget.
+        """
+        from .ordered_task import OrderedTaskRunner
+
+        return OrderedTaskRunner(self, verifier).run(task, output_root, visualization=visualization, configuration=configuration)
 
     def execution_diagnostics(self):
         diagnostics = getattr(self.task, "diagnostics", None)

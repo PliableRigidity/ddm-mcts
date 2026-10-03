@@ -1,5 +1,7 @@
 # V3 Phase 2: VLM-backed visual decision policy
 
+V3 Phase 3 also supports [ordered physical tasks](MULTI_STEP_AGENT.md) through this same root-only policy, with one shared Qwen backend. It retains alpha=0.5, c_puct=0.05, the upward-bias limitation and the historical failed c_puct=1.4 results documented below. Fresh observations and goal context are rebound at each subgoal and physical decision.
+
 This is a prompted Qwen3-VL adapter, not a robotics VLDM trained by this project. Qwen supplies action priors; the original MCTS searches MuJoCo futures and selects the executed action. Existing perception, controller, TCP and safe approach remain available.
 
 ## Run

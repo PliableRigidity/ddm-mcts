@@ -44,7 +44,8 @@ def build_parser():
     parser.add_argument("--output", default="robotics_runs")
     parser.add_argument("--viewer", action="store_true", help="observe selected actions in the MuJoCo viewer")
     parser.add_argument("--viewer-speed", type=float, default=1.0, help="execution speed multiplier (0.5 is slower; default 1)")
-    parser.add_argument("--task", choices=("reach", "visual-reach", "semantic-reach"), default="reach")
+    parser.add_argument("--task", choices=("reach", "visual-reach", "semantic-reach", "multi-semantic-reach"), default="reach")
+    parser.add_argument("--instruction", help="ordered Approach/Visit/Go to shape list for multi-semantic-reach")
     parser.add_argument("--goal", default=None, help="red/blue for visual-reach; language goal for semantic-reach")
     parser.add_argument("--observation", choices=("ground-truth", "camera"), help="visual-reach defaults to camera")
     parser.add_argument("--perception", choices=("ground-truth", "color", "vlm"), help="defaults to match task/observation mode")
@@ -68,8 +69,28 @@ def main(argv=None):
 
     parser = build_parser()
     args = parser.parse_args(argv)
-    args.goal = args.goal or ("Reach the cylindrical object." if args.task == "semantic-reach" else "red")
-    if args.decision_policy == "visual" and args.task != "semantic-reach":
+    semantic = args.task in ("semantic-reach", "multi-semantic-reach")
+    ordered_task = None
+    if args.task == "multi-semantic-reach":
+        from .ordered_task import parse_physical_task
+
+        if not args.instruction or args.goal is not None:
+            parser.error("multi-semantic-reach requires --instruction; omit --goal")
+        try:
+            ordered_task = parse_physical_task(
+                args.instruction,
+                epsilon=args.epsilon,
+                max_actions=args.max_steps,
+                standoff=args.standoff,
+                object_radius=args.object_radius,
+            )
+        except ValueError as exc:
+            parser.error(str(exc))
+        args.goal = ordered_task.subgoals[0].target
+    elif args.instruction is not None:
+        parser.error("--instruction requires --task multi-semantic-reach")
+    args.goal = args.goal or ("Reach the cylindrical object." if semantic else "red")
+    if args.decision_policy == "visual" and not semantic:
         parser.error("visual decision mode requires --task semantic-reach")
     if not 0 <= args.visual_alpha <= 1:
         parser.error("--visual-alpha must be between 0 and 1")
@@ -78,7 +99,7 @@ def main(argv=None):
         parser.error("--c-puct must be finite and nonnegative")
     if args.task == "visual-reach" and args.goal not in ("red", "blue"):
         parser.error("visual-reach goal must be red or blue")
-    if args.task != "semantic-reach" and args.perception == "vlm":
+    if not semantic and args.perception == "vlm":
         parser.error("VLM perception requires --task semantic-reach")
     if not isfinite(args.viewer_speed) or args.viewer_speed <= 0:
         parser.error("--viewer-speed must be finite and positive")
@@ -102,7 +123,7 @@ def main(argv=None):
         if args.target is not None:
             parser.error("visual-reach resolves --goal from observation; omit --target")
         factory = panda_visual_reach
-        if args.task == "semantic-reach":
+        if semantic:
             from .semantic_scene import panda_semantic_reach
 
             factory = panda_semantic_reach
@@ -111,7 +132,7 @@ def main(argv=None):
             increment=args.increment,
             axes=(0, 1) if args.planar else (0, 1, 2),
             physics_steps=args.physics_steps,
-            **({"use_tcp": True} if args.task == "semantic-reach" else {}),
+            **({"use_tcp": True} if semantic else {}),
         )
     policy = UniformPolicy()
     if args.policy != "uniform":
@@ -126,8 +147,8 @@ def main(argv=None):
         from .representation import CoordinateReachTask, SemanticReachTask
 
         mode = args.observation or ("camera" if args.task != "reach" else "ground-truth")
-        perception_mode = args.perception or ("vlm" if args.task == "semantic-reach" else ("color" if mode == "camera" else "ground-truth"))
-        if args.task == "semantic-reach" and (mode, perception_mode) != ("camera", "vlm"):
+        perception_mode = args.perception or ("vlm" if semantic else ("color" if mode == "camera" else "ground-truth"))
+        if semantic and (mode, perception_mode) != ("camera", "vlm"):
             parser.error("semantic-reach requires camera/vlm; use the Python API for explicit ground-truth baselines")
         if (mode, perception_mode) not in (("camera", "color"), ("camera", "vlm"), ("ground-truth", "ground-truth")):
             parser.error("use camera/color or ground-truth/ground-truth")
@@ -161,7 +182,7 @@ def main(argv=None):
             if args.task != "reach"
             else CoordinateReachTask(epsilon=args.epsilon, max_steps=args.max_steps)
         )
-        if args.task == "semantic-reach":
+        if semantic:
             from .approach import ApproachReachTask
 
             task = ApproachReachTask(SemanticGoal(args.goal), args.epsilon, args.max_steps, args.standoff, args.object_radius)
@@ -184,21 +205,28 @@ def main(argv=None):
         from .visual import ViewerClosed, VisualInspection
 
         try:
-            if agent is not None:
+            if agent is not None and ordered_task is None:
                 agent.prepare()  # Resolve the live target before placing the viewer marker.
             with VisualInspection(world, planner, args.viewer_speed) as observer:
                 try:
-                    folder = (
-                        run_episode(world, planner, args.output, configuration=vars(args), observer=observer)
-                        if agent is None
-                        else agent.run(args.output, visualization=observer, configuration=vars(args))
-                    )
+                    if ordered_task is not None:
+                        result = agent.run_task(ordered_task, args.output, visualization=observer, configuration=vars(args))
+                        folder, success = result.folder, result.success
+                    else:
+                        folder = (
+                            run_episode(world, planner, args.output, configuration=vars(args), observer=observer)
+                            if agent is None
+                            else agent.run(args.output, visualization=observer, configuration=vars(args))
+                        )
+                        success = world.task.is_success(world.get_state())
                     if agent is not None:
                         agent.close()  # Release offscreen GL while the viewer context is still alive.
                         execution_diagnostics = agent.execution_diagnostics()
                         if execution_diagnostics:
                             print(json.dumps({"semantic_approach": execution_diagnostics}, indent=2), flush=True)
-                    print(json.dumps({"output": str(folder), "success": world.task.is_success(world.get_state())}), flush=True)
+                    print(json.dumps({"output": str(folder), "success": success}), flush=True)
+                    if ordered_task is not None:
+                        print("Final task scene remains open. Close the window or press Ctrl+C in the terminal.", flush=True)
                     observer.wait_until_closed()
                 finally:
                     if agent is not None:
@@ -212,12 +240,17 @@ def main(argv=None):
         finally:
             if agent is not None:
                 agent.close()
-        return 0 if world.task.is_success(world.get_state()) else 1
+        return 0 if success else 1
     if agent is not None:
         with agent:
-            folder = agent.run(args.output, configuration=vars(args))
-        print(json.dumps({"output": str(folder), "success": world.task.is_success(world.get_state())}))
-        return 0 if world.task.is_success(world.get_state()) else 1
+            if ordered_task is not None:
+                result = agent.run_task(ordered_task, args.output, configuration=vars(args))
+                folder, success = result.folder, result.success
+            else:
+                folder = agent.run(args.output, configuration=vars(args))
+                success = world.task.is_success(world.get_state())
+        print(json.dumps({"output": str(folder), "success": success}))
+        return 0 if success else 1
     folder = run_episode(world, planner, args.output, configuration=vars(args))
     print(json.dumps({"output": str(folder), "success": world.task.is_success(world.get_state())}))
     return 0 if world.task.is_success(world.get_state()) else 1

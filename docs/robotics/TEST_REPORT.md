@@ -346,3 +346,105 @@ User manually accepted the real visual-policy cylinder viewer and safe TCP appro
 Ruff lint, all ten changed/new Python files' formatting and git whitespace checks pass. TCP/controller/approach/semantic-scene/MCTS sources and original per-substep clearance tests are byte-identical to Phase 1 HEAD. All 534 pre-Phase-2 historical outputs remain hash-identical; all 802 current output files were additionally protected at finalization. Qwen weights remain in the external Hugging Face cache. No runtime/model/image/cache/virtualenv/credential artifacts belong in the commit. Documentation retains the distinction between VLM perception, prompted visual priors, structured DDM priors, MCTS selection and MuJoCo transitions.
 
 Final pre-commit suite: **127 passed in 101.73 s**, no failures/skips: **41 V1 + 42 V2 + 26 V3 Phase 1/approach + 18 V3 Phase 2**. Ruff lint, changed-code formatting, staged artifact/security scan and git whitespace checks pass. Existing results and limitations are preserved. Main remains fa9e489; only the current Phase 2 branch is pushed.
+
+
+## 2026-10-03 — V3 Phase 3 final implementation validation
+
+**Status: COMPLETE; intentionally uncommitted on `v3-phase3-agent` for manual inspection.** Baseline main/HEAD: `2d13da0622c4be70bb8f5c00804eebe3be3a234c`, including V3 Phase 1 `ac50199` and Phase 2 `67444ac`. Baseline: **127 passed in 72.05 s**, no skips/failures. Final complete suite: **154 passed in 126.50 s**, no skips/failures: **41 V1 + 42 V2 + 26 V3 Phase 1/approach + 18 V3 Phase 2 + 27 new Phase 3**. Normal tests do not load Qwen, require network or open a GUI.
+
+New tests: `tests/test_ordered_tasks.py` (13) and `tests/robotics/test_ordered_agent.py` (14). They cover bounded grammar, ordering, duplicates, rejection, criteria/budgets, status/advancement, failure stops, retained completed results, independent verification, false episode success, mislabeled localization, true-object evaluation, state/snapshot persistence, forbidden resets, fresh trees, semantic/visual cache invalidation, model sharing/accounting, actual camera/visual priors/MCTS execution, no future-image calls, all-object substep clearance, alternate order, one viewer session and CLI final hold. Existing bad-visual-prior MCTS override proof passes unchanged.
+
+### Real cached-Qwen acceptance
+
+Model: `Qwen/Qwen3-VL-4B-Instruct`, CUDA:0 / torch.bfloat16, existing external cache `/home/ishaan/.cache/huggingface/hub/models--Qwen--Qwen3-VL-4B-Instruct/`. Offline mode was used; no weights were downloaded or copied into Git. Defaults: 60 simulations, horizon 3, seed 0, 20 mm Cartesian actions, 150 physics substeps, TCP site `panda_gripper_tcp` at hand-local Z=103.4 mm, bounding radius 40 mm, standoff 50 mm and +Z lift-first approach. Uniform MCTS uses c_puct=1.4. Visual mode retains alpha=0.5, c_puct=0.05, K=1 and uniform deeper-node policy.
+
+The following are physical multi-step episodes, **not reset single-target episodes**. Each task preserved robot/scene/camera/model/planner, observed afresh on transitions, and verified the actual TCP near both the estimated final waypoint and the requested object's true waypoint. Ground truth was used only for verification/diagnostics. All start/prepared states and full preparation snapshots match; each end state matches the next start state. The main three-object task executed 32 actions and observed 35 times, including final checks and next-goal observations. All 4,800 selected physics substeps had positive gripper clearance against all three geometries.
+
+| Mode | Ordered target | Actions | Estimated TCP error mm | True waypoint error mm | Final selected-object clearance mm | Minimum all-object transit clearance mm | MCTS overrides |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Phase 1 semantic / uniform | cylinder | 17 | 5.12 | 4.35 | 29.35 | 27.69 | 0 |
+| Phase 1 semantic / uniform | sphere | 9 | 4.71 | 4.72 | 40.49 | 29.35 | 0 |
+| Phase 1 semantic / uniform | cube | 6 | 6.09 | 5.06 | 40.41 | 30.50 | 0 |
+| Phase 2 visual / shared semantic | cylinder | 17 | 5.12 | 4.34 | 29.35 | 27.69 | 7 |
+| Phase 2 visual / shared semantic | sphere | 9 | 4.71 | 4.72 | 40.49 | 29.35 | 9 |
+| Phase 2 visual / shared semantic | cube | 6 | 6.09 | 5.06 | 40.40 | 30.50 | 6 |
+
+All six subgoals succeeded. Visual Qwen top-1 was **MOVE_Z_POS on all 32 decisions**. MCTS disagreed on **22/32** actual actions (7 cylinder, 9 sphere, 6 cube). The later lateral travels succeeded entirely through search recovery. This is not evidence that Qwen is a better robot policy or improves search. The Phase 2 c_puct=1.4 failed runs and explanation remain intact; no tuning, prompt leakage or result rewriting was used to hide the upward bias.
+
+| Accounting | Phase 1 headless | Phase 2 continuous viewer |
+|---|---:|---:|
+| Model load count | 1 | 1 |
+| Model load seconds | 4.945 | 5.772 |
+| Logical perception requests | 35 | 35 |
+| Semantic inference calls | 3 | 3 |
+| Semantic cache hits | 32 | 32 |
+| Semantic inference seconds | 8.932 | 10.433 |
+| Logical visual requests | 0 | 32 |
+| Physical visual calls | 0 | 32 |
+| Visual cache hits | 0 | 0 |
+| Visual cache misses | 0 | 32 |
+| Visual inference seconds | 0 | 86.713 |
+| Shared physical model calls | 3 | 35 |
+| Total model inference seconds | 8.932 | 97.147 |
+| Mean physical visual inference seconds | unavailable | 2.710 |
+| MCTS search seconds | 13.413 | 7.046 |
+| Controller execution seconds | 0.541 | 3.213 |
+| Task wall seconds | 30.831 | 116.750 |
+
+These timings are diagnostic measurements, not a controlled performance comparison: runs used different pacing and shared machine load. Model load time is distinct from inference. Phase 1 first/subsequent inferences were 3.311 / 2.836 / 2.785 s. Visual mode shared one backend for semantic and visual inference: 3 semantic + 32 visual = 35 physical calls, with one load. Per-subgoal action sequences, raw responses, priors, root visits/Q and Qwen/MCTS disagreements remain in the referenced run logs.
+
+Second-order acceptance `Go to the cube and then the cylinder.` succeeded with the same component configuration: cube 16 actions, TCP error 8.13 mm, clearance 39.61 mm; then cylinder 13 actions, TCP error 5.55 mm, clearance 30.70 mm. No reset; one model load, two semantic calls, 31 observations. Final true-waypoint errors were 7.33 / 5.07 mm. This rules out a hard-coded cylinder/sphere/cube ordering.
+
+### Viewer, regressions, outputs and repository protection
+
+Both actual WSL viewer paths completed cylinder -> sphere -> cube in one continuous viewer session, using the real cached Qwen model, and closed cleanly through the bounded acceptance utility. No orphaned viewer/model process remains. The viewer observes display copies and selected execution only; search branches stay invisible. Automated no-GUI tests additionally verify one launch across goals, nested callback monitoring and CLI hold only after the whole task. The normal CLI retains the final scene until manual closure; the validation utility closes automatically. This verifies initialization/execution/lifecycle, not independent human judgement of every visual detail; manual final inspection is recommended before checkpointing.
+
+Original public CLI headless smokes passed for coordinate reach, red and blue color perception, natural-language cylinder VLM perception, and natural-language cylinder visual policy. All original tests are retained and pass. Controller, TCP site configuration, semantic scene, approach logic and MCTS are unchanged. The only backend change composes nested execution callbacks so clearance monitoring and viewer synchronization both run; existing deterministic callback/physics tests pass.
+
+Runs (UTC timestamps):
+
+- Final Phase 1: `robotics_runs/20261002T234331_task_1c77126da611/task_trace.json`.
+- Real Phase 2 viewer: `robotics_runs/20261002T233135_task_7cda20bec9cb/task_trace.json`.
+- Real Phase 1 viewer: `robotics_runs/20261002T233032_task_d640886be221/task_trace.json`.
+- Headless visual acceptance: `robotics_runs/20261002T232646_task_721d4f1baef1/task_trace.json`.
+- Final second order: `robotics_runs/20261002T233940_task_9594e9e4cf10/task_trace.json`.
+- Coordinate/red/blue/single VLM/single visual: `20261002T233826_9a783d667d1b`, `20261002T233828_df734b80908f`, `20261002T233832_c26ae7844893`, `20261002T233836_376fd39b484c`, `20261002T233852_694996f4a8c9` under `robotics_runs/`.
+
+Ruff repository lint, formatting of all nine changed/new Python files, git whitespace and new-file whitespace checks pass. All **802 pre-existing protected result/report/run files** remain hash-identical. No old tests/results/logs were removed or overwritten. Generated runs, caches, images and the virtual environment remain ignored; no weights/runtime/credential artifacts are tracked or staged. Main and HEAD remain `2d13da0`; no commit, push or merge was performed.
+
+### Definition-of-done audit
+
+| Requirement | Status | Evidence |
+|---|---|---|
+| Existing baseline | PASS | 127 tests before edits |
+| Unified API / interchangeable components | PASS | PhysicalAgent.run_task; original interfaces; ground-truth and camera tests |
+| Ordered representation / supported language | PASS | PhysicalTask, ApproachGoal, parser grammar tests |
+| Tracked status / physical completion | PASS | Pending/active/succeeded/failed trace; independent waypoint/identity/clearance checks |
+| Failure stops and preserves results | PASS | Budget, perception, false-success and later-failure tests |
+| Panda and scene persist / no hidden reset | PASS | Forbidden reset tests; real state continuity and full snapshot comparisons |
+| Fresh MCTS goal state | PASS | New roots per decision; original MCTS unchanged |
+| Perception and visual caches refresh | PASS | Reset/reobserve per subgoal; goal-change/fresh-bind tests |
+| One shared Qwen load | PASS | Real one-load tasks and mock shared-backend accounting |
+| Safe transit | PASS | All-object signed substep checks; minimum distances above |
+| Real Phase 1 cylinder/sphere/cube | PASS | Final headless and continuous viewer traces |
+| Second ordering | PASS | Real cube/cylinder trace and reordered/duplicate tests |
+| Real Phase 2 multi-step exercised | PASS | Real root priors, MCTS and shared semantic path; headless + viewer |
+| Honest Qwen limitation | PASS | 32 upward top choices; 22 MCTS disagreements; old failed runs retained |
+| Continuous viewer | PASS | Real full-task execution/clean closure; fake-viewer API and CLI hold tests |
+| Structured trace / per-goal metrics | PASS | task_trace.json plus original referenced per-step logs |
+| Single-goal Phase 1 / Phase 2 | PASS | Public CLI smokes and unchanged regression tests |
+| V1 / V2 / V3 regressions | PASS | 41 / 42 / 26 / 18 tests |
+| No runtime/model artifacts committed | PASS | Ignored/external outputs; no staged files; no commit |
+| Accurate architecture/docs | PASS | Architecture, multi-step guide, practical guides, changelog and this report |
+
+Limits: simple fixed scene and bounded object grammar; calibrated-plane VLM localization; configured extent priors; primarily position-based IK; approach is not grasping; no general collision planner; gripper clearance sampling is not whole-robot/hardware safety certification; Qwen upward bias and prior sensitivity persist. Successful search recovery is not evidence of model superiority. No new model/download, training, grasping, ROS/hardware, RL, unrestricted language planning, multi-agent system or V4 work was added. Exact manual commands and programmatic composition: [MULTI_STEP_AGENT.md](MULTI_STEP_AGENT.md). Next action at this implementation checkpoint: manually inspect both multi-step viewer paths before checkpointing.
+
+### Final checkpoint — manual acceptance and pre-commit validation
+
+The user manually accepted both full cylinder → sphere → cube viewer modes. They confirmed requested ordering, no reset or teleport, persistent physical state, continuous safe transitions, correct TCP waypoint marker, one continuous viewer and successful task completion.
+
+The fresh complete suite passed **154 tests in 163.17 s**: V1 **41**, V2 **42**, V3 Phase 1/approach **26**, V3 Phase 2 **18**, new Phase 3 **27**. Ruff passed, all nine changed Python files passed formatting checks, and `git diff --check` passed. Existing single-goal compatibility is covered by the unchanged regression tests and the recorded CLI smoke runs above.
+
+The real results above are unchanged: all **32** visual-policy top choices were **MOVE_Z_POS**, and MCTS disagreed on **22/32** actions, with **alpha=0.5** and **visual c_puct=0.05**. The earlier c_puct=1.4 failure remains documented. Successful execution demonstrates MCTS recovery, not superior Qwen action reasoning. Real-model measurements were not rerun or altered for finalization.
+
+All **802** inventoried historical result/report/runtime files remained byte-for-byte unchanged. The source/documentation/test manifest contains no runtime logs, task traces, screenshots, weights, caches, environments or credentials. Qwen remains in the external Hugging Face cache; no model download or dependency change occurred. Finalization is confined to `v3-phase3-agent`; main remains `2d13da0`. The authorized checkpoint commit is `Complete V3 multi-step physical AI agent`; only that branch is to be pushed, without merging. The limitations listed above remain applicable.
