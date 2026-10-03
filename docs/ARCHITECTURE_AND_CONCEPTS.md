@@ -329,3 +329,31 @@ flowchart TD
 Pose control adds a world-frame SO(3) logarithmic orientation error to XYZ error and stacks translational/rotational MuJoCo Jacobians. Weighted damped least squares preserves joint/actuator limits, writes only actuator commands, and uses bounded position/quaternion trajectories. Position-only control remains unchanged. TCP orientation and object orientation are separate from their metric positions, as are pre-grasp, grasp and lift poses.
 
 Fingers act through Menagerie's coupled tendon servo. Success requires measured bilateral force-bearing contact and an object that actually rises and stays near the TCP during a bounded hold without table support. No object attachment/equality, live object qpos writes or gravity removal is used. Contact semantics change by stage: target finger contact becomes intentional, while hand/arm/table collisions and excessive penetration remain failures. The separate pickup scene documents its contact compliance and finger-servo tuning; V3 static targets and approach standoff remain unchanged. See [manipulation guide](robotics/MANIPULATION.md) for formulas, exact commands, verifiers and limits. This is simulated pickup, not placement, general collision planning or real-hardware safety validation.
+
+## V4 Phase 2: persistent physical pick-and-place
+
+This deterministic extension composes the frozen pickup stack; it does not replace V1 DDM, V3 perception, root visual priors, MCTS or MuJoCo futures. The manipulation operation receives explicit object/destination geometry rather than a language/VLM plan. MuJoCo remains the contact/friction/gravity world model and Panda actuators cause all physical object motion.
+
+```mermaid
+flowchart TD
+  P[Manipulation plan] --> O[Operation N]
+  O --> G[Frozen geometry-grounded pickup]
+  G --> L[Verified physical grasp and lift]
+  L --> T[Measure T_tcp_object]
+  T --> X[Transform desired object pose into TCP poses]
+  X --> C[Safe waypoint transport / retention monitor]
+  C --> PP[Verified pre-place]
+  PP --> D[Controlled descent]
+  D --> S[Actual object/support contact]
+  S --> R[Physical release and retreat]
+  R --> ST[Natural settling]
+  ST --> V[Independent placement / relation verification]
+  V --> OK{Success?}
+  OK -->|yes| N[Next operation from current physical state]
+  N --> O
+  OK -->|no| F[Stop / bounded pre-release recovery only]
+```
+
+Placement and TCP pose remain distinct: desired object pose is composed with the inverse of the measured held-object transform. Relative `next_to` is geometry-derived and checked from final physical poses, including actual surface gap and overlap. Support contact triggers release; finger commands alone cannot certify placement. Stable supported/released/upright placement is physically verified after natural settling.
+
+Robot, scene, objects and viewer persist; end/start full integration records match across operations. No object qpos writes, added attachment/equality, gravity removal or forced velocities are used. Recovery is bounded to one pre-release retry; serious or post-release failures stop later operations. Contact rules distinguish intended finger/support contact from forbidden hand/table/wrong-object contact. The cylinder is axis-symmetric: tilt bounds govern upright retention, while its substantial full yaw drift is separately reported. This finite simulation demonstration is not general collision planning, clutter/language manipulation or hardware safety validation. See [placement API and limitations](robotics/PICK_AND_PLACE.md). Historical V3 bias/recovery results remain unchanged.
