@@ -44,7 +44,8 @@ def build_parser():
     parser.add_argument("--output", default="robotics_runs")
     parser.add_argument("--viewer", action="store_true", help="observe selected actions in the MuJoCo viewer")
     parser.add_argument("--viewer-speed", type=float, default=1.0, help="execution speed multiplier (0.5 is slower; default 1)")
-    parser.add_argument("--task", choices=("reach", "visual-reach", "semantic-reach", "multi-semantic-reach"), default="reach")
+    parser.add_argument("--task", choices=("reach", "visual-reach", "semantic-reach", "multi-semantic-reach", "pickup"), default="reach")
+    parser.add_argument("--lift-distance", type=float, default=0.10, help="pickup lift in meters (0.05–0.15)")
     parser.add_argument("--instruction", help="ordered Approach/Visit/Go to shape list for multi-semantic-reach")
     parser.add_argument("--goal", default=None, help="red/blue for visual-reach; language goal for semantic-reach")
     parser.add_argument("--observation", choices=("ground-truth", "camera"), help="visual-reach defaults to camera")
@@ -69,6 +70,37 @@ def main(argv=None):
 
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.task == "pickup":
+        from .manipulation import ManipulationAgent, PickupTask
+        from .manipulation_scene import panda_pickup_scene
+
+        if not args.model or args.goal not in ("cube", "cylinder"):
+            parser.error("pickup requires --model/PANDA_MODEL and --goal cube|cylinder")
+        if args.target is not None or args.instruction is not None or args.perception is not None or args.decision_policy != "structured":
+            parser.error("pickup uses deterministic geometry; omit reach/perception/visual-policy options")
+        try:
+            task = PickupTask(args.goal, lift_distance=args.lift_distance)
+            if not isfinite(args.viewer_speed) or args.viewer_speed <= 0:
+                raise ValueError("--viewer-speed must be finite and positive")
+        except ValueError as exc:
+            parser.error(str(exc))
+        world = panda_pickup_scene(args.model)
+        agent = ManipulationAgent(world)
+        if args.viewer:
+            from .manipulation_visual import PickupInspection
+
+            try:
+                with PickupInspection(world, args.viewer_speed) as visual:
+                    result = agent.run(task, args.output, visualization=visual)
+                    print(json.dumps(result.trace, indent=2) if args.diagnostics else f"Success: {result.success}; logs: {result.folder}")
+                    print("Final scene remains open. Close the viewer or press Ctrl+C.", flush=True)
+                    visual.wait_until_closed()
+            except KeyboardInterrupt:
+                return 130
+        else:
+            result = agent.run(task, args.output)
+            print(json.dumps(result.trace, indent=2) if args.diagnostics else f"Success: {result.success}; logs: {result.folder}")
+        return 0 if result.success else 1
     semantic = args.task in ("semantic-reach", "multi-semantic-reach")
     ordered_task = None
     if args.task == "multi-semantic-reach":

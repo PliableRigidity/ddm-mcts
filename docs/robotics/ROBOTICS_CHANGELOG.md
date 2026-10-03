@@ -232,3 +232,28 @@ Manual commands and API: MULTI_STEP_AGENT.md. Recommended next action: inspect t
 The user manually accepted both continuous cylinder → sphere → cube viewers: ordered completion, persistent Panda state, continuous transitions, safe approach and TCP waypoint marker. Fresh finalization validation: **154 passed in 163.17 s** (41 V1, 42 V2, 26 Phase 1/approach, 18 Phase 2, 27 Phase 3); Ruff, changed-code formatting and whitespace checks passed. All 802 inventoried historical files remained unchanged; generated artifacts and external Qwen weights are excluded from the checkpoint.
 
 Recorded model findings are preserved exactly: all 32 visual top choices were MOVE_Z_POS; MCTS overrode 22/32; alpha=0.5 and visual c_puct=0.05. The c_puct=1.4 failure remains documented. This demonstrates search recovery rather than superior model action reasoning. No approach/TCP behavior, previous results, dependencies or scope changed during finalization. The user authorized commit `Complete V3 multi-step physical AI agent` and a normal push of `v3-phase3-agent` only; no merge to main or V4 work.
+
+## 2026-10-03 — V4 Phase 1: six-DoF physical pickup
+
+Baseline: clean `v4-phase1-grasping` from main `a8f0717`; **154 passed in 135.84 s** before edits. Existing V3 modules/results/tests are preserved; only a distinct pickup dispatch is added to the existing CLI.
+
+Added:
+
+- `pose_control.py`: validated wxyz pose targets, world-frame SO(3) error, both TCP Jacobians, weighted bounded DLS, quaternion trajectories, real actuator execution. Position-only controller unchanged.
+- `gripper.py`: actual Panda tendon actuation, bounded width commands and measured finger state.
+- `contacts.py`: geom/body/force/distance records and phase-aware contact rules.
+- `grasp.py`: distinct object/pre-grasp/grasp/lift representations, upright box-face and cylinder-radial grasps, independent bilateral-contact and lift/hold verification.
+- `manipulation_scene.py`: separate gravity-driven free-joint objects, support table and explicit pickup-only compliance/servo configuration.
+- `manipulation.py`: ordered physical pickup stages, safe transit, live substep monitoring, failure stop, unique structured diagnostics and object/TCP transforms.
+- `manipulation_visual.py`: existing display-copy viewer publication/cleanup reused for actual pickup motion and final inspection.
+- `examples/robotics/validate_pickup.py`, `tests/robotics/test_manipulation.py`, and `docs/robotics/MANIPULATION.md`.
+
+Found/fixed: free-body home keyframes initially lacked object poses; initialization now includes them before physical settling. Default cylinder contact/servo compliance allowed slip/drop; task-only pad/object solref is 5 ms, finger stiffness 400 N/m and damping 20 N s/m, retaining force limits and friction. Trial changes and longer-hold sensitivity are documented rather than hidden. External Menagerie files, V3 controller/TCP/approach, MCTS and Qwen remain unchanged. No object weld, attachment, live object teleport, forced velocity or gravity removal is used.
+
+Real acceptance: cube **3/3**, cylinder **3/3** with bilateral finger force, 100 mm lift and one-second checked hold. Cube actual elevation 99.08 mm, relative drift 1.30 mm; cylinder elevation 97.52 mm, drift 2.02 mm. Bounded WSL viewer runs for both completed and closed cleanly. Invalid offset grasp and dropped/unsupported-object tests fail correctly. New tests cover SO(3)/pose control, finite bounds, actual finger motion, contacts/rules, generation, state ordering, physical verification, no reset/teleport, logs, snapshot/restore and viewer lifecycle.
+
+Limitations: known upright cube/cylinder only; deterministic simulator geometry; bounded contact/hold verification; no whole-arm collision planner or real-hardware safety claim; cylinder retention remains contact-sensitive. No placement, learned grasping, new VLM, training, ROS, hardware, RL or V4 Phase 2/3. Qwen's historical upward-bias/MCTS-recovery results are unchanged. Work remains uncommitted/unpushed for manual pickup viewer inspection. Final test counts and runtime manifest locations are recorded in TEST_REPORT.md.
+
+### Phase 1 checkpoint finalization
+
+Authorized checkpoint: `Complete V4 Phase 1 physical grasping`, branch `v4-phase1-grasping` only. Fresh final suite: **200 passed in 134.29 s** (41 V1 / 42 V2 / 71 V3 / 46 V4 Phase 1); Ruff, changed-code formatting and whitespace checks pass. The 15-file manifest contains only Phase 1 source, tests, example and documentation. No code/physics changes were needed during finalization. Recorded real results, servo/contact configuration, cylinder rotation and bounded-retention limitations remain intact. All 960 protected historical files are unchanged; runtime/model artifacts are excluded. Main remains `a8f0717`; no merge or Phase 2 implementation is included.
