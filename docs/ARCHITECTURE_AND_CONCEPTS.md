@@ -357,3 +357,31 @@ flowchart TD
 Placement and TCP pose remain distinct: desired object pose is composed with the inverse of the measured held-object transform. Relative `next_to` is geometry-derived and checked from final physical poses, including actual surface gap and overlap. Support contact triggers release; finger commands alone cannot certify placement. Stable supported/released/upright placement is physically verified after natural settling.
 
 Robot, scene, objects and viewer persist; end/start full integration records match across operations. No object qpos writes, added attachment/equality, gravity removal or forced velocities are used. Recovery is bounded to one pre-release retry; serious or post-release failures stop later operations. Contact rules distinguish intended finger/support contact from forbidden hand/table/wrong-object contact. The cylinder is axis-symmetric: tilt bounds govern upright retention, while its substantial full yaw drift is separately reported. This finite simulation demonstration is not general collision planning, clutter/language manipulation or hardware safety validation. See [placement API and limitations](robotics/PICK_AND_PLACE.md). Historical V3 bias/recovery results remain unchanged.
+
+## V4 Phase 3: language-conditioned closed-loop manipulation
+
+[PHYSICAL_AI_AGENT.md](robotics/PHYSICAL_AI_AGENT.md) integrates existing observation/perception/world representation and policy/MCTS interfaces with frozen V4 physical skills. Language remains a bounded interpreter; Qwen supplies semantic grounding, and calibrated known-scene simulator geometry supplies metric poses. Physical verification remains authoritative.
+
+```mermaid
+flowchart TD
+  I[Bounded language instruction] --> T[Task interpreter / ordered manipulation operations]
+  T --> G[Current semantic operation]
+  G --> O[Fresh RGB or explicit ground-truth observation]
+  O --> P[Semantic perception / object binding]
+  P --> W[Structured world + calibrated simulator metric geometry]
+  W --> A{Multiple meaningful skill alternatives?}
+  A -->|yes| D[Policy priors / existing MCTS]
+  D <--> M[MuJoCo full-skill futures / snapshot restore]
+  A -->|forced| S[Frozen V4 physical skill]
+  D --> S
+  S --> V[Grasp / lift / placement / relation verification]
+  V --> R[Fresh observation / scene consistency]
+  R --> C{Physically verified?}
+  C -->|yes| N[Next operation from current physical state]
+  N --> G
+  C -->|recoverable| B[Bounded recovery / fresh cache and tree]
+  B --> O
+  C -->|fatal| F[Stop / structured failure]
+```
+
+MCTS compares feasible geometry-derived next_to sides through real contact-based skill outcomes and measured carry distance; one-action states are honestly forced. It searches a full skill, not servos. Semantic inference and rendering occur only at real checkpoints, never speculative branches. Loaded backend, robot, objects, scene and viewer persist; semantic caches/world state/trees refresh. Hypothetical snapshot restoration is distinct from resetting the executed episode. All frozen V3/V4 results, safe approach behavior, contact-sensitive cylinder retention and hardware-safety limitations remain unchanged.

@@ -95,3 +95,7 @@ The supported set is a known upright cube/cylinder in a simple calibrated simula
 ## Subsequent V4 Phase 2 extension
 
 The preceding sections preserve the Phase 1 pickup checkpoint and its historical measurements. [PICK_AND_PLACE.md](PICK_AND_PLACE.md) adds placement, relative geometry, measured transforms, continuous rearrangement and bounded recovery by composing the unchanged pickup executor. The Phase 1 command and API remain valid; no grasp/scene/controller/contact tuning was changed for Phase 2.
+
+## Phase 3 integration
+
+The [language-conditioned manipulation agent](PHYSICAL_AI_AGENT.md) delegates pickup to this unchanged stack. It adds semantic observation and high-level skill selection; it does not change grasp geometry, control, finger actuation, contact tuning or physical grasp/lift verification. Metric commands remain deterministic and no Qwen output controls low-level grasp physics.
