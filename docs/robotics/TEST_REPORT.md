@@ -448,3 +448,80 @@ The fresh complete suite passed **154 tests in 163.17 s**: V1 **41**, V2 **42**,
 The real results above are unchanged: all **32** visual-policy top choices were **MOVE_Z_POS**, and MCTS disagreed on **22/32** actions, with **alpha=0.5** and **visual c_puct=0.05**. The earlier c_puct=1.4 failure remains documented. Successful execution demonstrates MCTS recovery, not superior Qwen action reasoning. Real-model measurements were not rerun or altered for finalization.
 
 All **802** inventoried historical result/report/runtime files remained byte-for-byte unchanged. The source/documentation/test manifest contains no runtime logs, task traces, screenshots, weights, caches, environments or credentials. Qwen remains in the external Hugging Face cache; no model download or dependency change occurred. Finalization is confined to `v3-phase3-agent`; main remains `2d13da0`. The authorized checkpoint commit is `Complete V3 multi-step physical AI agent`; only that branch is to be pushed, without merging. The limitations listed above remain applicable.
+
+## 2026-10-03 — V4 Phase 1 final implementation validation
+
+**Status: COMPLETE implementation, left uncommitted on `v4-phase1-grasping` for manual viewer inspection.** The branch began clean at main merge `a8f0717`. Baseline **154 passed in 135.84 s**. Final full suite **200 passed in 137.48 s**, no skips with the external Panda model available:
+
+| Regression group | Passed |
+|---|---:|
+| V1 | 41 |
+| V2 | 42 |
+| V3 Phase 1 / approach | 26 |
+| V3 Phase 2 | 18 |
+| V3 Phase 3 | 27 |
+| New V4 manipulation | 46 |
+
+Command: `MUJOCO_GL=egl PANDA_MODEL=/home/ishaan/robot-arm-playground/mujoco_menagerie/franka_emika_panda/scene.xml PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest -q -o addopts=''`. The normal tests need no Qwen download, inference, network or GUI. Tests requiring the external Panda explicitly skip if PANDA_MODEL is absent; optional MuJoCo/NumPy tests skip if those extras are absent.
+
+### Six-DoF and physical validation
+
+SO(3) tests cover zero/small/90°/180° rotation, quaternion sign/normalization, and invalid poses. Real pose tests exercise translational and rotational Jacobians, multiple target orientations, tolerances, live-state non-teleportation, joint/actuator limits and position-only compatibility. Additional real pose checks around world X (+0.2 rad), Y (-0.2 rad) and Z (+90°) converged to position errors **0.391 / 0.285 / 0.107 mm** and orientation errors **0.00190 / 0.00175 / 0.00316 rad**. Unreachable poses fail actual verification rather than claiming success.
+
+The gripper physically opens to approximately **80 mm**, closes empty to near zero and stops at nonzero width against the object. Every selected substep is monitored; normal force is required to identify load-bearing contact. No object attachment, added weld, post-initialization object qpos write, forced velocity or disabled gravity is used. Only Menagerie's original finger-coupling equality remains. Pose IK scratch updates do not mutate live joints.
+
+### Real MuJoCo acceptance — three trials per target
+
+Final manifest: `robotics_runs/20261003T003930_pickup_validation_dfc49631543e/validation.json`. Three independently initialized trials per object were identical under this deterministic configuration:
+
+| Metric | Cube | Cylinder |
+|---|---:|---:|
+| Strategy | Top-down box-face pinch | Top-down radial pinch |
+| Successes | 3/3 | 3/3 |
+| Pre-grasp position error | 0.403 mm | 0.399 mm |
+| Pre-grasp orientation error | 0.000265 rad | 0.000261 rad |
+| Grasp position error | 0.382 mm | 0.384 mm |
+| Grasp orientation error | 0.000264 rad | 0.000262 rad |
+| Load-bearing finger contact | Bilateral | Bilateral |
+| Final measured width | 39.986 mm | 39.610 mm |
+| Object elevation | 99.079 mm | 97.520 mm |
+| Relative positional drift | 1.295 mm | 2.022 mm |
+| Object orientation drift | 0.000699 rad | 0.170918 rad |
+| Table contact after lift | None | None |
+| Checked hold duration | 1.0 s | 1.0 s |
+| Executed physics substeps monitored | 5,725 | 5,700 |
+| Maximum target-contact penetration | 0.679 mm | 0.565 mm |
+| Forbidden contacts | None | None |
+
+The cylinder rotated about 9.8° while held, within the explicit 0.35 rad verification bound; this is not hidden or described as rigid attachment. Longer retention remains contact-sensitive. The configured 100 mm lift succeeds only when actual object height increases at least 75 mm, relative drift is below 15 mm, bilateral force-bearing contact persists and table support is absent. All hold blocks are checked; later success cannot erase a transient failed hold.
+
+Default contact/actuation allowed cylinder slip and drop. Compliance-only changes still slipped during a 15 s diagnostic hold. The final pickup-only scene uses 5 ms pad/object contact response, finger stiffness 400 N/m and damping 20 N s/m, preserving original force limits and friction. Full changes, limits and rationale are in MANIPULATION.md. External Menagerie assets and V3 static scene/controller/approach behavior are unchanged.
+
+### Failure and viewer acceptance
+
+Tests deliberately offset the grasp by 80 mm: closure without bilateral contact fails at verify_grasp and never lifts. Bad pre-grasp pose/clearance fails before contact. Dropped/unsupported/no-force objects and forbidden hand/table or wrong-object contact are rejected. Logs preserve failure stage/reason, actual state and already executed motion. Snapshot tests include free-object and finger state.
+
+Final WSL viewer manifest: `robotics_runs/20261003T003933_pickup_validation_cb2c5c7b4cf1/validation.json`, one complete cube and one cylinder pickup, both successful and cleanly closed. The bounded utility closes automatically; normal CLI keeps the final scene open. No orphaned viewer/model process remains. A rendered final cube scene was inspected and shows the cube suspended between the fingers above the support table. Normal tests use a fake viewer to verify one session, display-copy isolation and nested execution callbacks without a GUI. Final personal viewer inspection is still recommended before the checkpoint.
+
+### V3 regression runtime validation
+
+The original coordinate CLI succeeded: `robotics_runs/20261003T003604_d74c9fcb0a3c/summary.json`. Real cached-Qwen V3 regression smokes also succeeded:
+
+- Continuous semantic-perception cylinder → sphere → cube: `robotics_runs/20261003T003603_task_635316610f48/task_trace.json`.
+- Visual-policy cylinder approach: `robotics_runs/20261003T003648_task_0025235ae38a/task_trace.json`.
+
+Both shared one existing Qwen backend/model load, with 21 physical inferences total. No download or new model was needed. The last real visual response still assigned all score to MOVE_Z_POS; prior upward-bias and MCTS-recovery findings remain intact. Original color, single-goal, visual-policy and ordered-task tests pass unchanged. The original controller, semantic scene, approach, MCTS, perception/model adapters and multi-step agent are byte-for-byte unchanged.
+
+### Repository and definition-of-done audit
+
+All required implementation gates pass: six-DoF control; measured physical finger motion; structured contacts; distinct shape-aware grasps; safe transit/pre-grasp/approach; phase-aware contact monitoring; bilateral grasp verification; physical lift; independent elevation/relative-pose/support/hold verification; invalid-grasp failure; real cube/cylinder trials; complete bounded viewers; CLI/API/logging; all regressions and documentation.
+
+Ruff, formatting of all ten changed/new Python files and whitespace checks pass. **960 inventoried pre-existing result/report/runtime files remain hash-identical**. Existing tests were not weakened or changed. Generated pickup traces, validation manifests, screenshots and model/cache artifacts are excluded/ignored; staging remains empty. No commit/push/merge occurred. The public Python API and exact manual commands are documented in [MANIPULATION.md](MANIPULATION.md).
+
+Known limits: known upright cube/cylinder in a simple simulated table scene; deterministic simulator geometry; configured trajectory/tolerance/contact rules; finite hold and contact sensitivity; no full collision planner, placement, learned grasping or hardware safety claim. No V4 Phase 2/3, another model, training, RL, ROS or real hardware was implemented.
+
+### Phase 1 checkpoint finalization
+
+The authorized Phase 1 finalization reran the full suite: **200 passed in 134.29 s**, no skips (41 V1, 42 V2, 71 V3, 46 V4 Phase 1). Ruff, all ten changed-code formatting checks and whitespace checks passed. The complete source/test/documentation audit found no Phase 2 placement or rearrangement implementation. Physics uses scratch-only arm IK, actual finger actuation and force-bearing contacts; object free-body positions are supplied only by scene/keyframe initialization before the episode, never written to fake grasping or lift.
+
+All previously measured cube/cylinder results and the cylinder rotation limitation above remain unchanged. All 960 protected historical files are hash-identical; previous V3 source/tests are unchanged and documentation is preserved with appended additions. Only the 15 Phase 1 source/test/example/documentation files belong to this checkpoint; runtime logs, validation manifests, images, weights, caches, environments and credentials are excluded. The authorized commit is `Complete V4 Phase 1 physical grasping`, pushed only to `v4-phase1-grasping`; main remains `a8f0717`, with no merge or Phase 2 work. The earlier uncommitted status describes the implementation checkpoint preceding this finalization.

@@ -114,3 +114,7 @@ The optional `vlm` extra adds Qwen3-VL-4B-Instruct to the existing pipeline. The
 See [LOCAL_VLM.md](LOCAL_VLM.md) for installation, GPU/model cache, standalone sanity check, cylinder/cube/sphere viewer commands, refresh/debugging options, logs and limitations. The default backend loads one local model per backend; normal tests use fakes and never download weights. V3 work remains uncommitted on `v3-phase1-vlm` pending manual inspection.
 
 V3 Phase 2 optionally adds a [VLM-backed visual decision policy](VISUAL_DECISION.md) via `--decision-policy visual`. Perception remains separate; fresh-image priors guide only the MCTS root, with the existing configured policy at deeper nodes. The safe approach waypoint remains above the object.
+
+## V4 Phase 1: physical pickup
+
+[Manipulation guide](MANIPULATION.md) adds optional six-DoF TCP IK, physical Panda finger control, structured contacts and deterministic cube/cylinder grasp-and-lift. Use `--task pickup --goal cube` or `--goal cylinder`, with optional `--viewer --diagnostics`. This uses a separate dynamic scene; all existing reach/perception/visual-policy/multi-step commands retain their behavior. Qwen is not required for pickup. No placement is implemented.

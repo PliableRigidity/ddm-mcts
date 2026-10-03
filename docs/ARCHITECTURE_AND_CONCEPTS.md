@@ -306,3 +306,26 @@ Safe travel reuses lift-first approach staging. The demonstration objects share 
 Phase 1 supplies semantic perception; Phase 2 supplies root-only prompted visual priors; Phase 3 adds ordered task management, physical verification, persistent execution and trace. Qwen's upward-motion bias remains: successful visual multi-step runs retain alpha=0.5 and c_puct=0.05 and rely on MCTS overriding those priors. The failed c_puct=1.4 Phase 2 trials remain intact. Recovery is not evidence of improved model action reasoning or real-hardware safety.
 
 The trace records instruction/order/status, physical state continuity, cache/model metrics, action and Qwen top-choice sequences, MCTS disagreements, waypoint errors, clearances and timings. Detailed priors/root statistics/raw responses remain in referenced original robotics logs. See [multi-step usage](robotics/MULTI_STEP_AGENT.md) and [validation](robotics/TEST_REPORT.md). The bounded object set, calibrated-plane localization, configured extent priors, position-based controller, lack of a general collision planner and absence of grasping remain deliberate limits. No V4 work is included.
+
+## V4 Phase 1: geometry-grounded physical pickup
+
+V4 extends the toolkit alongside the frozen V3 approach pipelines. A separate dynamic scene enables deterministic cube/cylinder pickup. Object selection and geometry are explicit simulator-native inputs in this phase; Qwen does not predict grasp transforms or commands. Existing MCTS is unchanged. The new executor is a contact-aware physical primitive rather than a duplicate planner.
+
+```mermaid
+flowchart TD
+  O[Known dynamic target object] --> G[Geometry-aware parallel-jaw grasp generator]
+  G --> P[Pre-grasp / grasp / lift poses]
+  P --> IK[Six-DoF TCP DLS IK]
+  IK --> R[Panda actuators and physics]
+  R --> F[Physical finger actuation]
+  R --> C[Structured contacts / phase-aware rules]
+  F --> V[Bilateral-contact grasp verifier]
+  C --> V
+  V --> L[Physical lift and hold]
+  L --> LV[Object elevation / relative pose / contact / support verification]
+  LV --> S[Pickup success or explicit failure]
+```
+
+Pose control adds a world-frame SO(3) logarithmic orientation error to XYZ error and stacks translational/rotational MuJoCo Jacobians. Weighted damped least squares preserves joint/actuator limits, writes only actuator commands, and uses bounded position/quaternion trajectories. Position-only control remains unchanged. TCP orientation and object orientation are separate from their metric positions, as are pre-grasp, grasp and lift poses.
+
+Fingers act through Menagerie's coupled tendon servo. Success requires measured bilateral force-bearing contact and an object that actually rises and stays near the TCP during a bounded hold without table support. No object attachment/equality, live object qpos writes or gravity removal is used. Contact semantics change by stage: target finger contact becomes intentional, while hand/arm/table collisions and excessive penetration remain failures. The separate pickup scene documents its contact compliance and finger-servo tuning; V3 static targets and approach standoff remain unchanged. See [manipulation guide](robotics/MANIPULATION.md) for formulas, exact commands, verifiers and limits. This is simulated pickup, not placement, general collision planning or real-hardware safety validation.
