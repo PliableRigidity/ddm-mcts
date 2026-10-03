@@ -184,3 +184,51 @@ User manually accepted the real visual-policy cylinder viewer and safe TCP appro
 Ruff lint, all ten changed/new Python files' formatting and git whitespace checks pass. TCP/controller/approach/semantic-scene/MCTS sources and original per-substep clearance tests are byte-identical to Phase 1 HEAD. All 534 pre-Phase-2 historical outputs remain hash-identical; all 802 current output files were additionally protected at finalization. Qwen weights remain in the external Hugging Face cache. No runtime/model/image/cache/virtualenv/credential artifacts belong in the commit. Documentation retains the distinction between VLM perception, prompted visual priors, structured DDM priors, MCTS selection and MuJoCo transitions.
 
 Final pre-commit suite: **127 passed in 101.73 s**, no failures/skips: **41 V1 + 42 V2 + 26 V3 Phase 1/approach + 18 V3 Phase 2**. Ruff lint, changed-code formatting, staged artifact/security scan and git whitespace checks pass. Existing results and limitations are preserved. Main remains fa9e489; only the current Phase 2 branch is pushed.
+
+
+## 2026-10-03 — V3 Phase 3: unified multi-step physical-AI agent
+
+COMPLETE, intentionally uncommitted on `v3-phase3-agent`; main remains the 2d13da0 checkpoint. No commit/push/merge or V4 work.
+
+Added PhysicalTask/ApproachGoal, a bounded deterministic Approach/Visit/Go-to shape-list parser, OrderedTaskRunner/TaskResult/ApproachVerifier, and PhysicalAgent.run_task. The runner reuses the original closed-loop agent/MCTS/controller, tracks ordered status, stops on failed verification, and writes compact task traces linked to original subgoal logs. Physical robot/scene/camera state persists; full snapshots and state continuity are checked. Subgoal action budgets extend cumulative step bounds instead of resetting counters. Existing search already creates a new tree per decision; no search rewrite was necessary.
+
+Verification checks actual TCP at the final outside-object waypoint, semantic identity, optional true requested-object waypoint and all-object signed gripper clearance. True geometry/entities are evaluation only and never repair perception or leak into Qwen. The final-waypoint check prevents the intermediate lift or a false episode-success flag from advancing the task; the true-object check rejects a mislabeled/mislocalized estimate. Clearance checks scope to selected physics execution, including transitions. Nested backend callbacks now compose clearance monitoring and viewer synchronization; no physics/controller behavior changed.
+
+Goal-dependent grounding/tracking and visual caches refresh, while one lazy Qwen backend remains loaded and shared. Added cumulative logical perception counts and separate physical semantic inference/cache timing; per-task/per-goal differences remain distinct from shared model totals. Multi-step CLI uses --task multi-semantic-reach --instruction, preserving single-target commands. One viewer spans the entire sequence and holds the final scene only once. A small explicit real acceptance example demonstrates programmatic composition and bounded viewer cleanup.
+
+Baseline 127 passed in 72.05 s; final 154 passed in 126.50 s: 41 V1 + 42 V2 + 26 Phase 1 + 18 Phase 2 + 27 Phase 3. Real Phase 1 cylinder/sphere/cube: 17/9/6 actions, TCP errors 5.12/4.71/6.09 mm, selected-object clearances 29.35/40.49/40.41 mm, one model load and three semantic calls. Real Phase 2 same order: 32 visual calls + 3 semantic calls, one model load, same 17/9/6 actions, 22 MCTS overrides. Qwen top-1 remains upward on all 32 steps. Alpha=0.5 and visual c_puct=0.05 remain; Phase 2 c_puct=1.4 failed results were not modified. Second real order cube/cylinder succeeds without reset. Both real continuous-viewer smoke paths completed and closed cleanly. Final public single-goal coordinate/red/blue/VLM/visual commands pass. Detailed timing, errors, clearance, raw-output references and acceptance checklist are in TEST_REPORT.md.
+
+Ruff lint, nine changed/new Python files' formatting and whitespace pass. All 802 protected pre-existing outputs remain unchanged. Controller/TCP/approach/scene/MCTS code and all old tests remain intact. Weights are still external; runtime/cache/image/virtualenv artifacts remain ignored and unstaged. No dependencies were added.
+
+Files added:
+
+- `ddm_mcts/robotics/ordered_task.py`
+- `docs/robotics/MULTI_STEP_AGENT.md`
+- `examples/robotics/validate_multi_step.py`
+- `tests/robotics/test_ordered_agent.py`
+- `tests/test_ordered_tasks.py`
+
+Files modified:
+
+- `README.md`
+- `ddm_mcts/robotics/__init__.py`
+- `ddm_mcts/robotics/cli.py`
+- `ddm_mcts/robotics/mujoco_backend.py`
+- `ddm_mcts/robotics/physical_agent.py`
+- `ddm_mcts/robotics/vlm_perception.py`
+- `docs/ARCHITECTURE_AND_CONCEPTS.md`
+- `docs/robotics/LOCAL_VLM.md`
+- `docs/robotics/README.md`
+- `docs/robotics/ROBOTICS_CHANGELOG.md`
+- `docs/robotics/TEST_REPORT.md`
+- `docs/robotics/VISUAL_DECISION.md`
+
+Known limits retained: simple shape scene/object set and bounded grammar; calibrated-plane localization and configured extent; position-only safe approach, not grasping; no general collision planner or hardware safety claim; persistent upward visual bias; successful recovery does not prove Qwen improves search. Deferred: manipulation/grasping, training, another model, cloud/ROS/hardware, unrestricted language planning, RL and V4. No speculative extensions were implemented.
+
+Manual commands and API: MULTI_STEP_AGENT.md. Recommended next action: inspect the final perception and visual-policy multi-step viewer on this branch before checkpointing.
+
+### Final Phase 3 acceptance checkpoint
+
+The user manually accepted both continuous cylinder → sphere → cube viewers: ordered completion, persistent Panda state, continuous transitions, safe approach and TCP waypoint marker. Fresh finalization validation: **154 passed in 163.17 s** (41 V1, 42 V2, 26 Phase 1/approach, 18 Phase 2, 27 Phase 3); Ruff, changed-code formatting and whitespace checks passed. All 802 inventoried historical files remained unchanged; generated artifacts and external Qwen weights are excluded from the checkpoint.
+
+Recorded model findings are preserved exactly: all 32 visual top choices were MOVE_Z_POS; MCTS overrode 22/32; alpha=0.5 and visual c_puct=0.05. The c_puct=1.4 failure remains documented. This demonstrates search recovery rather than superior model action reasoning. No approach/TCP behavior, previous results, dependencies or scope changed during finalization. The user authorized commit `Complete V3 multi-step physical AI agent` and a normal push of `v3-phase3-agent` only; no merge to main or V4 work.

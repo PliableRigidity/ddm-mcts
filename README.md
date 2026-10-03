@@ -22,6 +22,8 @@ python -m ddm_mcts.robotics.cli --target 0.5945 0.02 0.6245
 
 Optional [local VLM perception](docs/robotics/LOCAL_VLM.md) adds Qwen3-VL semantic shape reaching through the same planner, using `.[vlm]`. Ground-truth and classical vision remain available.
 
+[Ordered physical tasks](docs/robotics/MULTI_STEP_AGENT.md) reuse those components to execute “Approach the cylinder, then the sphere, then the cube.” The Panda keeps its physical state between subgoals, verifies each safe approach, and produces a task trace. Optional Qwen visual priors guide the original MCTS; their documented upward-motion bias remains a limitation.
+
 Robotics runs live in `robotics_runs/`. The historical research commands and material below remain available.
 
 `ddm-mcts` is a runnable research prototype for testing whether direct decision models (DDMs), [Laya](https://github.com/NandhaKishorM/laya) and [Mica](https://github.com/akivet/Mica-v0.1-4B), can guide Monte Carlo Tree Search toward useful branches with fewer simulations. The testbed covers Connect Four, grid navigation, job scheduling, delivery routing, seeded inventory management, and synthetic delayed reward.

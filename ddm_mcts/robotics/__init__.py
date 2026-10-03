@@ -2,6 +2,7 @@
 
 from .core import RoboticsEnvironment, RoboticsPlanner, SimulatorAdapter, Task
 from .observation import GroundTruthObservationProvider, Observation, ObservationProvider, SemanticGoal
+from .ordered_task import ApproachGoal, ApproachVerifier, OrderedTaskRunner, PhysicalTask, TaskResult, parse_physical_task
 from .perception import GroundTruthPerception, ModelPerceptionAdapter, PerceptionProvider
 from .physical_agent import PhysicalAgent
 from .reach import CartesianAction, ReachTask, cartesian_actions, panda_reach
@@ -26,4 +27,10 @@ __all__ = [
     "SemanticReachTask",
     "WorldState",
     "PhysicalAgent",
+    "ApproachGoal",
+    "ApproachVerifier",
+    "OrderedTaskRunner",
+    "PhysicalTask",
+    "TaskResult",
+    "parse_physical_task",
 ]
