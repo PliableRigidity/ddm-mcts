@@ -44,7 +44,13 @@ def build_parser():
     parser.add_argument("--output", default="robotics_runs")
     parser.add_argument("--viewer", action="store_true", help="observe selected actions in the MuJoCo viewer")
     parser.add_argument("--viewer-speed", type=float, default=1.0, help="execution speed multiplier (0.5 is slower; default 1)")
-    parser.add_argument("--task", choices=("reach", "visual-reach", "semantic-reach", "multi-semantic-reach", "pickup"), default="reach")
+    parser.add_argument(
+        "--task",
+        choices=("reach", "visual-reach", "semantic-reach", "multi-semantic-reach", "pickup", "pick-place", "rearrange-demo"),
+        default="reach",
+    )
+    parser.add_argument("--place-position", nargs=3, type=float, help="desired object center XYZ on the manipulation table")
+    parser.add_argument("--place-next-to", choices=("cube", "cylinder"), help="geometry-derived next_to destination")
     parser.add_argument("--lift-distance", type=float, default=0.10, help="pickup lift in meters (0.05–0.15)")
     parser.add_argument("--instruction", help="ordered Approach/Visit/Go to shape list for multi-semantic-reach")
     parser.add_argument("--goal", default=None, help="red/blue for visual-reach; language goal for semantic-reach")
@@ -70,6 +76,12 @@ def main(argv=None):
 
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.task in ("pick-place", "rearrange-demo"):
+        from .pick_place_cli import run_pick_place
+
+        return run_pick_place(args, parser)
+    if args.place_position is not None or args.place_next_to is not None:
+        parser.error("placement options require --task pick-place")
     if args.task == "pickup":
         from .manipulation import ManipulationAgent, PickupTask
         from .manipulation_scene import panda_pickup_scene

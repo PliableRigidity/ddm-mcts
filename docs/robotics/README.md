@@ -118,3 +118,7 @@ V3 Phase 2 optionally adds a [VLM-backed visual decision policy](VISUAL_DECISION
 ## V4 Phase 1: physical pickup
 
 [Manipulation guide](MANIPULATION.md) adds optional six-DoF TCP IK, physical Panda finger control, structured contacts and deterministic cube/cylinder grasp-and-lift. Use `--task pickup --goal cube` or `--goal cylinder`, with optional `--viewer --diagnostics`. This uses a separate dynamic scene; all existing reach/perception/visual-policy/multi-step commands retain their behavior. Qwen is not required for pickup. No placement is implemented.
+
+## V4 Phase 2: pick-and-place and continuous rearrangement
+
+[PICK_AND_PLACE.md](PICK_AND_PLACE.md) documents `--task pick-place --goal cube --place-position 0.60 -0.10 0.37`, `--task pick-place --goal cylinder --place-next-to cube`, and `--task rearrange-demo`. Each supports the existing viewer/diagnostics flags. Measured TCP/object transforms, physical contact release, independent placement/relation verification and a bounded retry extend frozen pickup. Rearrangement keeps one Panda, scene and viewer throughout; Qwen is not used by these deterministic operations.

@@ -525,3 +525,74 @@ Known limits: known upright cube/cylinder in a simple simulated table scene; det
 The authorized Phase 1 finalization reran the full suite: **200 passed in 134.29 s**, no skips (41 V1, 42 V2, 71 V3, 46 V4 Phase 1). Ruff, all ten changed-code formatting checks and whitespace checks passed. The complete source/test/documentation audit found no Phase 2 placement or rearrangement implementation. Physics uses scratch-only arm IK, actual finger actuation and force-bearing contacts; object free-body positions are supplied only by scene/keyframe initialization before the episode, never written to fake grasping or lift.
 
 All previously measured cube/cylinder results and the cylinder rotation limitation above remain unchanged. All 960 protected historical files are hash-identical; previous V3 source/tests are unchanged and documentation is preserved with appended additions. Only the 15 Phase 1 source/test/example/documentation files belong to this checkpoint; runtime logs, validation manifests, images, weights, caches, environments and credentials are excluded. The authorized commit is `Complete V4 Phase 1 physical grasping`, pushed only to `v4-phase1-grasping`; main remains `a8f0717`, with no merge or Phase 2 work. The earlier uncommitted status describes the implementation checkpoint preceding this finalization.
+
+## V4 Phase 2 — physical placement and continuous rearrangement (2026-10-03)
+
+### Baseline and regression scope
+
+The prerequisite Phase 1 merge `da9884ac0e2d2fbd21702e88ededdbf912215703` was authorized, committed and pushed to main. `v4-phase2-pick-place` was created from that clean merge with Phase 1 `c05339d` in history. Baseline: **200 passed in 132.79 s**. Phase 2 adds **71 tests**; all historical tests remain unchanged. The final suite contains 271 tests: V1 41, V2 42, V3 71 (26 perception/approach, 18 visual policy, 27 ordered agent), Phase 1 manipulation 46, Phase 2 placement 71.
+
+Tests cover offset rigid transforms/inversion/composition, desired-object to TCP pose, geometry-derived destinations/extents/gap/workspace, pre-place/place/retreat, transport height, contact semantics, force-bearing retention and drift, cylinder symmetry/tilt, independent final-pose relation including hovering/tipped/overlapping cases, stable/unsupported/unreleased/fast/tipped/incorrect placement, actual physical releases, invalid-destination stop, one bounded retry/limit, no-retry drop, substep contact-loss stop, finite unloading grace, physical state continuity, trace contents, continuous viewer display isolation and legacy/new CLI parsing. Real MuJoCo tests run without Qwen or GUI; external PANDA_MODEL is required for physical tests. Tests do not weaken existing grasp verification.
+
+Full command:
+
+```bash
+MUJOCO_GL=egl PANDA_MODEL=/home/ishaan/robot-arm-playground/mujoco_menagerie/franka_emika_panda/scene.xml \
+  PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest -q -o addopts=''
+```
+
+### Repeated real-physics acceptance
+
+Manifest: `robotics_runs/20261003T020336_placement_validation_0d9a68e954ec/validation.json`. Every requested trial was successful. Earlier diagnostics and failures are preserved separately; the manifest does not erase them. Trials were physically deterministic under this configuration.
+
+| Metric | Cube absolute (3/3) | Cylinder next_to (3/3) | Sequential cube (2/2) |
+|---|---:|---:|---:|
+| Pre-grasp position error | 0.403 mm | 0.399 mm | 0.397 mm |
+| Pre-grasp orientation error | 0.000265 rad | 0.000261 rad | 0.000261 rad |
+| Bilateral force-bearing grasp | Yes | Yes | Yes |
+| Grasp width | 39.986 mm | 39.594 mm | 39.986 mm |
+| Object lift | 99.079 mm | 97.520 mm | 99.069 mm |
+| Free transport path | 112.266 mm | 181.717 mm | 195.821 mm |
+| Minimum free-transport table clearance | 99.036 mm | 90.143 mm | 99.029 mm |
+| Maximum relative positional drift through carry/descent | 2.626 mm | 13.780 mm | 3.480 mm |
+| Maximum retention rotation drift | 0.031084 rad | 0.016524 rad (axis tilt) | 0.040039 rad |
+| Maximum full SO(3) rotation drift | 0.031084 rad | **0.748772 rad** | 0.040039 rad |
+| Placement position error | 0.267 mm | 0.132 mm | 0.090 mm |
+| Placement orientation error | 0.0000299 rad | 0.0001826 rad (upright tilt) | 0.00000474 rad |
+| Settling-window maximum linear speed | 1.58e-10 m/s | 0.000125 m/s | 1.61e-10 m/s |
+| Settling-window maximum angular speed | 1.16e-8 rad/s | 0.005195 rad/s | 6.70e-9 rad/s |
+| Supported/released/stable/upright | Yes | Yes | Yes |
+| Physics substeps | 15,725 | 16,700 | 17,100 |
+| Forbidden contacts | None observed | None observed | None observed |
+
+Both sequential trials completed cylinder placement followed by cube placement without reset. Operation 1 matches the cylinder metrics above. Exact end/start robot/object records match; all Panda/scene/object reset counts are zero. The final read-only checks independently confirm both objects are supported, released, upright and slow. Final representative centers: cylinder `(0.420100,-0.079918,0.374971)`, cube `(0.460069,0.099949,0.369972)` m. The cylinder is next_to the cube when operation 1 finishes; moving the cube in operation 2 intentionally changes that relation.
+
+The independently observed cylinder/cube relation after operation 1 has horizontal center distance **79.902 mm**, surface gap **39.878 mm**, overlap **0 mm**, within the documented [30,50] mm gap interval. Both actual support contacts are checked. `next_to` is derived from geometry and feasible X/Y candidates; it is not a magic fixed destination.
+
+Across the eight acceptance plans (ten operations): **164,875 executed physics substeps**, **2,169,022 intended contact observations** (per substep, not distinct episodes), **zero forbidden contacts**, maximum observed penetration **0.679 mm**. Timings and every desired/actual pose are in the manifest; headless operation times varied with concurrent validation load. No collision-free claim is made because grasp/support contacts are intentional.
+
+### Diagnostics, recovery and failure
+
+Initial 4 mm transport increments triggered finger unloading. Reducing held-motion increments to 1 mm maintained the cube grasp without changing frozen contact/servo parameters. Supported descent correctly permits finger-force unloading only after real object/table contact. Cylinder yaw is symmetric, so retention bounds axis tilt while reporting full rotation separately. Axial drift is substantial and positional drift approaches the 15 mm limit; no rigid or indefinite retention claim is made. A bounded 20 ms force-unloading filter requires ongoing bilateral pad geometry, nonempty measured width and valid drift; acceptance gaps were ≤4 ms. Tests stop immediately for geometry loss or excessive drift and stop prolonged force unloading.
+
+An initially nearer Y-side cylinder destination obstructed the next cube grasp's open finger, producing a real forbidden-contact failure. Geometry now excludes narrow Y gaps that occupy the reference's open-jaw sweep. That failed trace remains preserved; no collision rule was disabled.
+
+Controlled recovery run: `robotics_runs/20261003T015718_pick_place_a64afd4f8631/summary.json`. A deliberately offset first grasp physically closed empty and failed bilateral verification. The system opened, retreated through actuation, recomputed and succeeded with exactly one retry, then physically placed the cube. Controlled invalid-destination run: `robotics_runs/20261003T015730_pick_place_d54271bd5141/summary.json`. The first operation failed with `invalid_destination`, executed zero physics substeps, preserved state and never started the second operation. Unit tests also enforce the retry limit, drop stop and no infinite loops. No post-release autonomous regrasp recovery is implemented.
+
+### Viewer, compatibility and audit
+
+Real WSL/GLFW viewer manifest: `robotics_runs/20261003T020447_placement_validation_43cde92aa216/validation.json`. Both single placements and the continuous two-operation plan completed successfully; each plan used one scene/viewer with no reset. The utility closes after the plan; normal CLI keeps the final scene open for manual inspection. Fake-viewer tests check display-copy isolation, nested callbacks and one continuous session.
+
+Fresh unchanged Phase 1 pickup regression: cube and cylinder succeeded, `robotics_runs/20261003T015722_pickup_validation_b8e43162bd03/validation.json`. Original coordinate CLI succeeded, `robotics_runs/20261003T020226_367a663f9744/summary.json`. Complete original V1/V2/V3/Phase 1 regressions are preserved; Qwen inference need not be rerun because its backend/adapters and V3 controllers/scenes/agent are unchanged. The frozen upward bias and alpha=0.5/c_puct=0.05 MCTS recovery findings remain documented exactly.
+
+The Phase 1 manipulation scene, controller, gripper, contact implementation, grasp generator, pickup state machine, tests, example and external Menagerie assets are unchanged. No new friction/servo/contact tuning, object qpos writes, added weld/attachment, gravity removal, forced following, velocity zeroing or freezing is used. Full snapshots are read solely for continuity logging, never restored inside manipulation. Documentation additions preserve historical sections verbatim. All **1,032 inventoried historical result/runtime files** remain hash-identical; new ignored runtime output uses unique directories. No Phase 2 changes are staged, committed, pushed or merged. Scope remains deterministic known-scene placement/rearrangement with bounded recovery, no Qwen manipulation or V4 Phase 3, general collision planner or hardware safety claim.
+
+Final validation after the complete trace/continuity audit: **271 passed in 198.74 s**, no skips. Repository-wide Ruff, all seven changed/new Python formatting checks, tracked/untracked whitespace checks and the artifact allowlist pass. Both new single-operation headless CLI paths succeeded as well. Nine earlier physical diagnostic episodes stopped under development configurations (eight retention-condition stops and one wrong-object collision); these are retained rather than counted as successes. The separate invalid-destination acceptance is an expected tenth failed trace. The final repeated acceptance manifest reports all eight requested trials, not the earlier diagnostic experiments. New Phase 2 source/tests/documentation remain uncommitted on the requested branch pending manual viewer acceptance.
+
+### Phase 2 manual acceptance and checkpoint finalization
+
+The user manually accepted cube absolute pick-and-place, upright cylinder next-to-cube placement, and continuous cylinder-then-cube rearrangement. They observed physical grasp/lift/transport/descent/release/retreat, stable final objects, and continuity from the current Panda state without robot/scene/object reset. No teleportation, fake attachment or obviously artificial object motion was observed. This manual acceptance supplements the automated contact/transform/state audits; it does not change the measured results, cylinder drift limits or nine retained development failures above.
+
+The user authorized checkpoint `Complete V4 Phase 2 physical pick and place` on `v4-phase2-pick-place`, pushed only to that branch. Main remains the Phase 1 merge `da9884ac0e2d2fbd21702e88ededdbf912215703`; no Phase 2 merge or Phase 3 work is included. Earlier uncommitted/manual-inspection statements describe the implementation checkpoint before this finalization.
+
+Fresh checkpoint validation: **271 passed in 185.56 s**, no skips (41 V1 / 42 V2 / 71 V3 / 46 V4 Phase 1 / 71 V4 Phase 2). Repository Ruff, all seven changed-code format checks and staged/unstaged whitespace checks passed. All 1,242 inventoried existing result/runtime files, including the original 1,032 protected files and Phase 2 acceptance/diagnostic traces, remain hash-identical. The reviewed 13-file checkpoint contains only source, tests, example and documentation; no runtime/model/cache/environment/credential files are included. The physics audit confirms measured-transform placement, final-physical-pose relation checks, actual Panda actuation and natural dynamics, with no object-state writes or fake attachment/freezing/velocity mechanisms.
