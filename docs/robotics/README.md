@@ -122,3 +122,7 @@ V3 Phase 2 optionally adds a [VLM-backed visual decision policy](VISUAL_DECISION
 ## V4 Phase 2: pick-and-place and continuous rearrangement
 
 [PICK_AND_PLACE.md](PICK_AND_PLACE.md) documents `--task pick-place --goal cube --place-position 0.60 -0.10 0.37`, `--task pick-place --goal cylinder --place-next-to cube`, and `--task rearrange-demo`. Each supports the existing viewer/diagnostics flags. Measured TCP/object transforms, physical contact release, independent placement/relation verification and a bounded retry extend frozen pickup. Rearrangement keeps one Panda, scene and viewer throughout; Qwen is not used by these deterministic operations.
+
+## V4 Phase 3: language-conditioned closed-loop manipulation
+
+[PHYSICAL_AI_AGENT.md](PHYSICAL_AI_AGENT.md) documents `--task manipulate --instruction 'Pick up the cylinder and place it next to the cube.'`, optional `--perception vlm`, and continuous `Move the cylinder next to the cube, then move the cube to the target location.`. The composed API supports fresh observations, semantic binding, actual MuJoCo skill-future MCTS choices, frozen V4 execution and physically verified progress. Existing reach, pickup, pick-place and rearrangement modes are unchanged.

@@ -222,3 +222,7 @@ The main packages are:
 - Multi-budget runs print each result; file export currently accepts one budget per invocation.
 
 The key experiment is strength versus simulation budget, not only aggregate win rate: compare vanilla and guided MCTS at 10, 25, 50, 100, 250, 500, and 1000 simulations to test whether useful priors reduce search cost.
+
+## Closed-loop physical manipulation
+
+The optional robotics toolkit now exposes a [bounded language manipulation agent](docs/robotics/PHYSICAL_AI_AGENT.md) composing semantic perception, high-level MCTS/MuJoCo futures and verified physical cube/cylinder pick-and-place. Existing V1/V2/V3 and deterministic V4 APIs remain available. These are known-scene simulation demonstrations, not unrestricted manipulation or real-hardware safety validation.

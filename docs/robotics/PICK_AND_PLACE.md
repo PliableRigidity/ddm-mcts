@@ -100,3 +100,7 @@ Known upright cube/cylinder, deterministic grasp/destination geometry, calibrate
 ## Manual acceptance
 
 The user manually validated cube absolute placement, upright cylinder next-to-cube placement and the continuous two-operation rearrangement. Physical grasp, transport, support, release, retreat and stable final placement were observed; Panda continued from current state without robot/scene/object reset. No teleportation, fake attachment or obviously artificial motion was observed. Recorded results, contact-sensitive cylinder drift and earlier diagnostic failures remain in TEST_REPORT.md; acceptance does not imply real-hardware safety.
+
+## Phase 3 integration
+
+[PHYSICAL_AI_AGENT.md](PHYSICAL_AI_AGENT.md) adds a bounded language task interpreter, semantic observation and physically simulated placement-side selection around this frozen skill implementation. Placement/retention/contact/settling thresholds and historical measurements remain unchanged. Actual selected operations use the same measured transform, physical release, independent placement/relation checks and bounded recovery. Speculative MuJoCo branches have separate logs and restore state; the executed multi-operation episode does not reset.

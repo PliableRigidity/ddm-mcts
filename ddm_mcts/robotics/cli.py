@@ -46,13 +46,13 @@ def build_parser():
     parser.add_argument("--viewer-speed", type=float, default=1.0, help="execution speed multiplier (0.5 is slower; default 1)")
     parser.add_argument(
         "--task",
-        choices=("reach", "visual-reach", "semantic-reach", "multi-semantic-reach", "pickup", "pick-place", "rearrange-demo"),
+        choices=("reach", "visual-reach", "semantic-reach", "multi-semantic-reach", "pickup", "pick-place", "rearrange-demo", "manipulate"),
         default="reach",
     )
     parser.add_argument("--place-position", nargs=3, type=float, help="desired object center XYZ on the manipulation table")
     parser.add_argument("--place-next-to", choices=("cube", "cylinder"), help="geometry-derived next_to destination")
     parser.add_argument("--lift-distance", type=float, default=0.10, help="pickup lift in meters (0.05–0.15)")
-    parser.add_argument("--instruction", help="ordered Approach/Visit/Go to shape list for multi-semantic-reach")
+    parser.add_argument("--instruction", help="bounded instruction for multi-semantic-reach or manipulate")
     parser.add_argument("--goal", default=None, help="red/blue for visual-reach; language goal for semantic-reach")
     parser.add_argument("--observation", choices=("ground-truth", "camera"), help="visual-reach defaults to camera")
     parser.add_argument("--perception", choices=("ground-truth", "color", "vlm"), help="defaults to match task/observation mode")
@@ -76,6 +76,10 @@ def main(argv=None):
 
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.task == "manipulate":
+        from .manipulation_agent_cli import run_manipulation
+
+        return run_manipulation(args, parser)
     if args.task in ("pick-place", "rearrange-demo"):
         from .pick_place_cli import run_pick_place
 

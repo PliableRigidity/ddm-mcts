@@ -596,3 +596,73 @@ The user manually accepted cube absolute pick-and-place, upright cylinder next-t
 The user authorized checkpoint `Complete V4 Phase 2 physical pick and place` on `v4-phase2-pick-place`, pushed only to that branch. Main remains the Phase 1 merge `da9884ac0e2d2fbd21702e88ededdbf912215703`; no Phase 2 merge or Phase 3 work is included. Earlier uncommitted/manual-inspection statements describe the implementation checkpoint before this finalization.
 
 Fresh checkpoint validation: **271 passed in 185.56 s**, no skips (41 V1 / 42 V2 / 71 V3 / 46 V4 Phase 1 / 71 V4 Phase 2). Repository Ruff, all seven changed-code format checks and staged/unstaged whitespace checks passed. All 1,242 inventoried existing result/runtime files, including the original 1,032 protected files and Phase 2 acceptance/diagnostic traces, remain hash-identical. The reviewed 13-file checkpoint contains only source, tests, example and documentation; no runtime/model/cache/environment/credential files are included. The physics audit confirms measured-transform placement, final-physical-pose relation checks, actual Panda actuation and natural dynamics, with no object-state writes or fake attachment/freezing/velocity mechanisms.
+
+## V4 Phase 3 — integrated language manipulation (2026-10-03)
+
+Branch `v4-phase3-physical-ai-agent`, base/main merge `f7d6d801eeec20bb3357f20f0cf829b5828b6d4d`; frozen Phase 2 checkpoint `2fbfe00493e9cf57f0a03cc457ef2440226ad448` is an ancestor. Clean baseline **271 passed in 180.54 s**. First complete implementation regression: **317 passed in 256.91 s**. Counts: 41 V1, 42 V2, 71 V3, 46 V4 Phase 1, 71 V4 Phase 2, **46 new Phase 3**. Ordinary tests use fakes for model inference and real MuJoCo where PANDA_MODEL is configured; no Qwen weights are needed by pytest.
+
+New coverage includes bounded instruction parsing, ordered task decomposition, fixed-action honesty, calibrated read-only observations, known-scene/VLM grounding, missing/wrong semantic targets, invalid destinations, goal/scene cache invalidation, shared fake backend loading, bounded fresh-view recovery, physically verified pickup, actual high-level MuJoCo search override, continuous physical two-operation execution, one viewer object, failure stop and pending later operations. Frozen Phase 1/2 recovery/contact/placement tests remain unchanged.
+
+### Designated end-to-end acceptance
+
+Every requested trial is retained:
+
+- Deterministic manifest: `robotics_runs/20261003T024553_agent_validation_9adb9d823917/validation.json`: single cylinder next_to cube **1/1**, continuous language cylinder-then-cube **2/2**.
+- Real Qwen manifest: `robotics_runs/20261003T024542_agent_validation_55e9924996d6/validation.json`: same single **1/1**, continuous multi-step **2/2**.
+- Real GUI smoke manifest: `robotics_runs/20261003T024630_agent_validation_b7955ecc19a7/validation.json`: deterministic single and continuous multi-step **2/2**; one viewer per entire task, no speculative branches animated. Normal CLI keeps final scene open.
+
+Both modes execute actual frozen physical skills; corresponding final metric results are deterministic under this configuration. No physical threshold, grasp geometry, contact/friction/servo parameter or historical output was changed.
+
+| New integrated acceptance metric | Cylinder placement | Subsequent cube placement |
+|---|---:|---:|
+| Placement position error | 0.030927 mm | 0.123368 mm |
+| Orientation error | 0.000114683 rad (axis tilt) | 0.000431900 rad |
+| Carry travel | 181.854 mm | 195.805 mm |
+| Minimum free-transport table clearance | 90.337 mm | 99.049 mm |
+| Maximum positional retention drift | 13.603 mm | 3.482 mm |
+| Maximum axis/full retention rotation | 0.004916 / **0.724041 rad** | 0.040713 rad |
+| Supported/released/stable/upright | Yes | Yes |
+| Final linear speed | 0.0001433 m/s | 1.78e-10 m/s |
+| Final angular speed | 0.005950 rad/s | 1.44e-8 rad/s |
+| Executed substeps per operation | 16,675 | 17,025 |
+| Forbidden contacts observed | 0 | 0 |
+
+Cylinder relation at its completion: actual horizontal center distance **79.993881 mm**, surface gap **39.989184 mm**, overlap **0**, verified inside [30,50] mm. MCTS chose the +X candidate in these finite-budget runs; there is no guaranteed minimal-cost/optimal-search claim. The later cube move intentionally changes the earlier relation. Final representative centers: cylinder `(0.579994,-0.079992,0.374971)` and cube `(0.460111,0.099955,0.369972)` m.
+
+All continuous tasks preserve exact operation-end/next-start integration, robot and object records. Panda, scene and object resets: **0**. For the six designated headless acceptance tasks (ten executed operations): **168,150 executed physics substeps**, **2,119,408 intended contact observations**, **0 forbidden contacts**, maximum penetration **0.678795 mm**. Separately, their twelve speculative skill branches accounted for **200,250** physics substeps and **1,396,512** intended contact observations, also with no forbidden contacts. Speculative snapshot restoration is not counted as real task execution or a robot reset. GUI/diagnostic/regression runs are additional separate manifests.
+
+### Real semantic model and honest failures
+
+Cached `Qwen/Qwen3-VL-4B-Instruct`, CUDA:0/bfloat16, **one shared model load** across the three designated VLM tasks. Load **3.949631 s**; **18 physical semantic calls**, total inference **53.199199 s**, mean **2.955511 s**. Per-task calls: **4 / 7 / 7**. No visual-policy calls or speculative inference. Total task times: **27.400 / 49.697 / 49.652 s** under concurrent validation load. Model diagnostics are cumulative for that shared session; new task traces additionally record the starting counters and per-task deltas.
+
+Each multi-step task's first post-cube grounding at the 45-degree front view selected the wrong object region despite high confidence. The agent did not trust it. One new 25-degree observation resolved the cube, leaving all physical thresholds unchanged. Model descriptions also misinterpreted a shadow as a liquid-like substance; such prose never controls geometry or verification. These semantic limitations are not action-policy improvement evidence.
+
+Earlier failed attempts remain: `robotics_runs/20261003T023716_manipulation_agent_8430a6879ab3/` (physical single placement succeeded, post-placement semantic binding failed) and `robotics_runs/20261003T023927_manipulation_agent_9ca7916ef412/` (both physical operations succeeded, final semantic binding exhausted the earlier views). The read-only camera/grounding diagnostics are retained separately. These failures motivated a bounded alternate view, not tolerance weakening or geometry leaked to Qwen. All nine Phase 2 diagnostic failures and original Phase 1/2 measurements remain unchanged.
+
+### Genuine MCTS override and controlled failure
+
+`robotics_runs/20261003T025103_agent_override_f7b17e4bcf0d/validation.json` records a physical setup move of the cube to `(0.54,-0.08,0.37)`. A synthetic prior assigns +X probability **0.99**, −X **0.01**. Actual MuJoCo skill transitions verify both placements. Measured carry paths: −X **167.806815 mm**, +X **202.803085 mm**. Existing MCTS (60 simulations, test c_puct=0.005, one full-skill horizon) selects −X with **59 versus 1 visits**, saving **34.996270 mm**. The selected action is then executed and physically verified in the live scene. Snapshot equality proves search preserved live state. This is a physical cost override, not an invented symbolic transition or a claim about Qwen priors. Default manipulation search c_puct remains 0.05 with uniform priors.
+
+An invalid outside-workspace destination fails structurally before physics; the second operation stays pending and the complete physical snapshot is unchanged. The unique failure task trace records its reason/state. Unit tests also cover missing perception, exhausted single-view recovery, failed skill stop, and successful fresh-view recovery. Frozen Phase 2 tests continue to prove bounded physical grasp retry and fatal-drop/collision handling.
+
+Old command smokes passed: pickup cube, pickup cylinder, cube absolute pick-place, continuous rearrange-demo, and real-Qwen V3 cylinder semantic approach (`robotics_runs/20261003T024853_6832b0e80a2a/`). Existing V3 visual-policy behavior, upward bias, alpha=0.5/c_puct=0.05 and MCTS-recovery findings are untouched. Manipulation visual-prior extension/experiment was not performed; the Cartesian policy is not misapplied to skill actions.
+
+Known limits remain: explicit privileged known-scene metric calibration, bounded grammar, upright cube/cylinder, deterministic geometry, finite contact-sensitive cylinder retention, waypoint transport, bounded recovery, no general collision planner and no hardware-safety claim. Historical Phase 2 13.780 mm positional drift and 0.749 rad full rotation versus 0.0165 rad axis tilt remain preserved. Phase 3 stays uncommitted/unpushed for manual acceptance.
+
+### Final model-protocol and GUI audit
+
+A subsequent final-source regression passed **317 tests in 250.95 s**. Three additional model-protocol cases now exercise invalid JSON, missing required fields and an explicit unknown object through the actual shared backend adapter. Each exhausts at most one fresh-view retry, loads the fake backend once, issues no physical motion and leaves later operations pending. The final suite therefore contains **49 Phase 3 cases** (320 total); the complete final run is recorded below.
+
+Real-Qwen GUI smoke also completed both single and continuous multi-step tasks: `robotics_runs/20261003T025245_agent_validation_674944ab2f2f/validation.json`, **2/2**, one shared backend load, per-task semantic calls **4 / 7**, exact state continuity. These final-source traces include explicit per-task inference deltas. Automated viewer smokes do not substitute for the user's pending manual acceptance.
+
+Controlled invalid-destination acceptance: `robotics_runs/20261003T024941_manipulation_agent_f8cb6f31584a/task_trace.json`; structured failure, second operation pending, complete physical state unchanged. All 1,242 previously inventoried historical/runtime files and all 92 protected source/test files remain byte-identical; modified historical guides only append the new Phase 3 sections.
+
+**Final complete suite: 320 passed in 214.54 s** — 41 V1, 42 V2, 71 V3, 46 V4 Phase 1, 71 V4 Phase 2 and 49 V4 Phase 3. Repository Ruff, all eight changed Python format checks and `git diff --check` pass. Staging is empty; no tracked runtime/model artifacts were added. Branch/main HEAD remain the original Phase 2 merge; Phase 3 is left as source/test/example/documentation working-tree changes.
+
+### Phase 3 manual acceptance and finalization
+
+The user manually validated all four integrated viewer demonstrations: deterministic single-step, real-Qwen single-step, deterministic multi-step and real-Qwen multi-step. Physical grasp, lift, transport, placement, release, retreat and continued execution were observed without visible teleportation, fake attachment, scene reset or object reset. Qwen supplied semantic grounding and deterministic geometry supplied metric manipulation. The earlier semantic misidentifications and bounded alternate-view recovery remain documented; prior acceptance metrics, visual-action bias and Phase 2 cylinder drift findings are unchanged.
+
+Authorized checkpoint: `Complete V4 Phase 3 physical AI agent`, normal SSH push of `v4-phase3-physical-ai-agent` only. Main remains `f7d6d801eeec20bb3357f20f0cf829b5828b6d4d`; no Phase 3 merge or V5 work. Earlier uncommitted/pending-acceptance statements record the prior implementation stage.
+
+Fresh finalization suite: **320 passed in 272.49 s**, no skips, with counts independently confirmed as 41 V1 / 42 V2 / 71 V3 / 46 V4 Phase 1 / 71 V4 Phase 2 / 49 V4 Phase 3. Repository Ruff, all eight changed-code formatting checks and staged/unstaged whitespace checks pass. The cylinder next_to regression also passed again (`robotics_runs/20261003T224953_pick_place_653eb286cf7e/`); previous pickup, absolute placement, continuous rearrangement and real-Qwen V3 semantic approach acceptance traces were verified. All 1,242 protected historical/runtime files and 92 frozen source/test files remain hash-identical. The 16-file checkpoint contains only source, tests, example and documentation; no runtime/model/cache/image/environment/credential files are staged.
