@@ -666,3 +666,20 @@ The user manually validated all four integrated viewer demonstrations: determini
 Authorized checkpoint: `Complete V4 Phase 3 physical AI agent`, normal SSH push of `v4-phase3-physical-ai-agent` only. Main remains `f7d6d801eeec20bb3357f20f0cf829b5828b6d4d`; no Phase 3 merge or V5 work. Earlier uncommitted/pending-acceptance statements record the prior implementation stage.
 
 Fresh finalization suite: **320 passed in 272.49 s**, no skips, with counts independently confirmed as 41 V1 / 42 V2 / 71 V3 / 46 V4 Phase 1 / 71 V4 Phase 2 / 49 V4 Phase 3. Repository Ruff, all eight changed-code formatting checks and staged/unstaged whitespace checks pass. The cylinder next_to regression also passed again (`robotics_runs/20261003T224953_pick_place_653eb286cf7e/`); previous pickup, absolute placement, continuous rearrangement and real-Qwen V3 semantic approach acceptance traces were verified. All 1,242 protected historical/runtime files and 92 frozen source/test files remain hash-identical. The 16-file checkpoint contains only source, tests, example and documentation; no runtime/model/cache/image/environment/credential files are staged.
+
+## V5 acceptance (new evidence; prior results preserved)
+
+Clean merged-V4 baseline: **320 passed in 242.60 s** (V1 41, V2 42, V3 71, V4 166). New V5 tests cover goals, every predicate, support/affordance boundaries, actual simulation-time wait and falling-body evolution, physical MCTS prior override/restoration, primitive callbacks and bounded failure-stop behavior.
+
+Designated real MuJoCo: stacking 3/3, cylinder toppling 3/3, deterministic stack/wait/topple 3/3, cached local-Qwen headline 1/1. One continuous GUI smoke task succeeds with exact state continuity; manual V5 acceptance remains pending. Accounting: 254,000 executed vs 354,494 speculative substeps; 4,677,105 intended contact observations, zero executed forbidden contacts, maximum penetration 1.568301 mm. [The V5 guide](COMPOSITIONAL_PHYSICAL_REASONING.md) preserves every designated manifest, early failed diagnostics, physical tuning, controlled failures, semantic timings and limits.
+
+Final V5 automated suite: **372 passed in 274.48 s** — V1 41, V2 42, V3 71, V4 Phase 1 46, Phase 2 71, Phase 3 49, new V5 52. Ruff, changed-code formatting and whitespace checks passed. Frozen source/tests and historical runtime files in the 1,687-file protected inventory remain unchanged; documentation changes preserve original contents as prefixes. V5 is unstaged/uncommitted for manual viewer acceptance.
+
+### V5 manual viewer acceptance and final checkpoint audit — 2026-10-04
+
+The user visually accepted cube-on-cylinder stacking, physical cylinder pushing/
+toppling, the deterministic full headline task, and the real-Qwen full headline
+task. This completes manual visual acceptance separately from the automated
+measurements already recorded. No new measurements are inferred from visual review.
+The final source, predicate, compliance, search-isolation and failure audit is
+recorded in COMPOSITIONAL_PHYSICAL_REASONING.md. Historical results are preserved.

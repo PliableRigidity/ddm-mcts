@@ -226,3 +226,7 @@ The key experiment is strength versus simulation budget, not only aggregate win 
 ## Closed-loop physical manipulation
 
 The optional robotics toolkit now exposes a [bounded language manipulation agent](docs/robotics/PHYSICAL_AI_AGENT.md) composing semantic perception, high-level MCTS/MuJoCo futures and verified physical cube/cylinder pick-and-place. Existing V1/V2/V3 and deterministic V4 APIs remain available. These are known-scene simulation demonstrations, not unrestricted manipulation or real-hardware safety validation.
+
+## V5 compositional physical reasoning
+
+An additive bounded MuJoCo goal/predicate/interaction agent composes physical support placement, simulation-time waits and physics-searched pushes. See [the V5 guide](docs/robotics/COMPOSITIONAL_PHYSICAL_REASONING.md) for evidence, commands and limitations. Existing V4 modes remain separate.

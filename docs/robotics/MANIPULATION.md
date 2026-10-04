@@ -99,3 +99,7 @@ The preceding sections preserve the Phase 1 pickup checkpoint and its historical
 ## Phase 3 integration
 
 The [language-conditioned manipulation agent](PHYSICAL_AI_AGENT.md) delegates pickup to this unchanged stack. It adds semantic observation and high-level skill selection; it does not change grasp geometry, control, finger actuation, contact tuning or physical grasp/lift verification. Metric commands remain deterministic and no Qwen output controls low-level grasp physics.
+
+## V5 support and contact composition
+
+The V5 executor reuses the frozen pickup/recovery and pose/transform/contact components with an explicit support-surface interface. It derives object-on-object support placement from current geometry, advances physical waits and searches controlled finger pushes. Its separate scene uses documented 4 ms object/support contact compliance for toppling impact; original V4 scene parameters remain unchanged. See [the V5 guide](COMPOSITIONAL_PHYSICAL_REASONING.md).

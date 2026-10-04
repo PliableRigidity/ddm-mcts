@@ -293,3 +293,14 @@ Final audit: **320 passed in 214.54 s**, including 49 new Phase 3 cases and all 
 The user manually accepted all four deterministic/real-Qwen single/multi-step manipulation viewer modes, confirming physical execution and continuous state without visible teleportation, attachment or resets. Semantic/metric separation, bounded alternate-view recovery, actual MuJoCo MCTS override and all historical limitations/results are preserved. Authorized checkpoint `Complete V4 Phase 3 physical AI agent`, SSH push of the Phase 3 branch only; main remains the Phase 2 merge and no V5 work is included.
 
 Fresh checkpoint validation: **320 passed in 272.49 s**, all six groups intact. Ruff, eight changed-code format checks, whitespace and artifact audits pass. Cylinder relative-placement regression passed again; existing physical acceptance records and all protected historical files remain unchanged. The reviewed 16-file checkpoint excludes runtime/model artifacts and preserves all measured semantic, physical and MCTS findings.
+
+## V5 — compositional physical reasoning (working tree)
+
+Added ordered predicate goals, bounded goal parsing, observed relationship graphs, support surfaces/affordances, reusable interaction execution, physical waits and actual MuJoCo push-future MCTS with snapshot restoration. Real acceptance: stack 3/3, cylinder toppling 3/3, deterministic headline 3/3, local-Qwen headline 1/1. Added controlled physical failure and misleading-prior evidence. No frozen V4 controller/skill source was changed; only the existing CLI gains additive dispatch. Evidence and limitations: [V5 guide](COMPOSITIONAL_PHYSICAL_REASONING.md).
+
+### V5 final checkpoint audit — 2026-10-04
+
+Recorded user manual viewer acceptance of stacking, pushing/toppling and both
+headline modes. Audited reusable goal composition, physical predicates, live
+physics integrity, contact compliance and isolated MuJoCo MCTS futures. No new
+features or changes to frozen V1–V4 behavior were introduced during finalization.

@@ -385,3 +385,7 @@ flowchart TD
 ```
 
 MCTS compares feasible geometry-derived next_to sides through real contact-based skill outcomes and measured carry distance; one-action states are honestly forced. It searches a full skill, not servos. Semantic inference and rendering occur only at real checkpoints, never speculative branches. Loaded backend, robot, objects, scene and viewer persist; semantic caches/world state/trees refresh. Hypothetical snapshot restoration is distinct from resetting the executed episode. All frozen V3/V4 results, safe approach behavior, contact-sensitive cylinder retention and hardware-safety limitations remain unchanged.
+
+## V5 physical goals and world-model interaction search
+
+V5 adds language → ordered physical predicates → observed relationship graph/affordances → geometry-derived interactions → MCTS/MuJoCo futures where alternatives exist → physical execution → re-observation/verification. Forced grasp/support-placement/wait components execute directly; push alternatives use real contact futures. Semantic Qwen grounding remains separate from explicit simulator metric geometry. See [COMPOSITIONAL_PHYSICAL_REASONING.md](robotics/COMPOSITIONAL_PHYSICAL_REASONING.md).

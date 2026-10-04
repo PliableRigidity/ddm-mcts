@@ -46,7 +46,17 @@ def build_parser():
     parser.add_argument("--viewer-speed", type=float, default=1.0, help="execution speed multiplier (0.5 is slower; default 1)")
     parser.add_argument(
         "--task",
-        choices=("reach", "visual-reach", "semantic-reach", "multi-semantic-reach", "pickup", "pick-place", "rearrange-demo", "manipulate"),
+        choices=(
+            "reach",
+            "visual-reach",
+            "semantic-reach",
+            "multi-semantic-reach",
+            "pickup",
+            "pick-place",
+            "rearrange-demo",
+            "manipulate",
+            "physical-reason",
+        ),
         default="reach",
     )
     parser.add_argument("--place-position", nargs=3, type=float, help="desired object center XYZ on the manipulation table")
@@ -76,6 +86,10 @@ def main(argv=None):
 
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.task == "physical-reason":
+        from .physical_reasoning_cli import run_physical_reasoning
+
+        return run_physical_reasoning(args, parser)
     if args.task == "manipulate":
         from .manipulation_agent_cli import run_manipulation
 

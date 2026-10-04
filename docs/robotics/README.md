@@ -126,3 +126,7 @@ V3 Phase 2 optionally adds a [VLM-backed visual decision policy](VISUAL_DECISION
 ## V4 Phase 3: language-conditioned closed-loop manipulation
 
 [PHYSICAL_AI_AGENT.md](PHYSICAL_AI_AGENT.md) documents `--task manipulate --instruction 'Pick up the cylinder and place it next to the cube.'`, optional `--perception vlm`, and continuous `Move the cylinder next to the cube, then move the cube to the target location.`. The composed API supports fresh observations, semantic binding, actual MuJoCo skill-future MCTS choices, frozen V4 execution and physically verified progress. Existing reach, pickup, pick-place and rearrangement modes are unchanged.
+
+## V5 goal composition
+
+[COMPOSITIONAL_PHYSICAL_REASONING.md](COMPOSITIONAL_PHYSICAL_REASONING.md) documents the additive `physical-reason` mode, physical predicates, support surfaces, simulation-time wait, Panda pushes and genuine MuJoCo-backed MCTS. Frozen V4 `manipulate` remains unchanged.

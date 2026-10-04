@@ -108,3 +108,7 @@ Known simple scene and upright cube/cylinder; bounded language, explicit simulat
 The user manually accepted deterministic and real-Qwen single-step and multi-step viewer demonstrations. They observed genuine physical grasp, lift, transport, placement, release, retreat and continuous execution without visible teleportation, attachment, scene reset or object reset. Real-Qwen runs performed semantic grounding while deterministic geometry remained responsible for metric manipulation. This acceptance leaves the documented semantic failures, alternate-view recovery, explicit simulator metric geometry, historical visual-action bias and cylinder retention limitations unchanged.
 
 The authorized checkpoint is `Complete V4 Phase 3 physical AI agent`, pushed only on `v4-phase3-physical-ai-agent`. Main is not merged or changed; no V5 work is included. Earlier pending-acceptance statements in the test report/changelog describe the preceding implementation checkpoint.
+
+## V5 additive extension
+
+V5 is a separate goal-driven agent and CLI mode, not a rewrite of this frozen V4 skill agent. Its bounded interpreter describes desired physical relationships, and physical predicate verification gates continuation. See [the V5 guide](COMPOSITIONAL_PHYSICAL_REASONING.md). Qwen semantic/metric separation, shadow misidentification, alternate-view recovery and historical action-prior findings remain applicable.
